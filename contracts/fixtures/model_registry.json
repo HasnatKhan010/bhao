@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-08-24T06:00:00Z",
+  "meta": {
+    "is_fixture": true
+  },
+  "champion": "gbm-v1",
+  "models": [
+    {
+      "version": "gbm-v1",
+      "model_name": "global_gbm",
+      "trained_at": "2026-08-24T05:52:10Z",
+      "trained_through": "2026-08-13",
+      "n_series": 867,
+      "n_rows": 118431,
+      "features_version": "feat-v1",
+      "hyperparams": {
+        "num_leaves": 63,
+        "learning_rate": 0.05,
+        "n_estimators": 400
+      },
+      "backtest": {
+        "folds": 12,
+        "mase": 0.91,
+        "smape": 3.94,
+        "coverage_80": 0.78,
+        "beat_seasonal_naive_pct_of_series": 0.62
+      },
+      "artefact_path": "contracts/fixtures/registry_artefacts/gbm-v1/",
+      "artefact_sha256": "8ae6ce6ff228e5b3539e6e846f85b6b606555352017ee0982a503eb3c59c8d69",
+      "promoted_at": "2026-08-24T06:00:00Z",
+      "promoted_because": "First champion: backtest MASE 0.91 vs seasonal-naive 1.00 over 12 rolling-origin folds (fixture data).",
+      "retired_at": null,
+      "status": "champion"
+    }
+  ],
+  "promotion_log": [
+    {
+      "at": "2026-08-24T06:00:00Z",
+      "from": "seasonal_naive",
+      "to": "gbm-v1",
+      "decision": "promote",
+      "reason": "Initial promotion: the pooled GBM beat seasonal-naive by 9% MASE on the fixture backtest, clearing the 3% gate.",
+      "trigger": "initial training"
+    }
+  ]
+}

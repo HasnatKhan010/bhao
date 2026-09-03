@@ -1,0 +1,42 @@
+# CI — C owns. Install, lint, pytest on every push/PR.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Generate fixtures (deterministic — must be a no-op diff)
+        run: python -m contracts.fixtures.make_fixtures
+
+      - name: Lint
+        run: ruff check contracts ingest orchestration features models evaluation drift registry api ops tests
+
+      - name: Test
+        run: pytest tests -q --cov --cov-report=term-missing
+
+      # Fixtures are committed; regenerating them must change nothing.
+      - name: Fail if fixtures are not deterministic
+        run: |
+          if ! git diff --exit-code -- contracts/fixtures; then
+            echo "::error::Regenerating fixtures changed files — fixtures must be deterministic."
+            exit 1
+          fi
