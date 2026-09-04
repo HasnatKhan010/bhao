@@ -160,6 +160,34 @@ ITEMS: tuple[ItemDef, ...] = (
             420.00, 0.006, ("Cloth Printed Cotton",)),
     ItemDef("057", "LPG Cylinder 11.8 Kg", "11.8 Kg", "kg", 11.8, "fuel_energy", None, False, True,
             2780.00, 0.008, ("LPG Cylinder 11.8 Kg",)),
+    # --- codes 058+: real SPI basket items the seed catalog lacked (added after the
+    #     2026-08-27 spike verified the true 51-item basket). spi_weight: real basket
+    #     items, so they are part of the SPI national table.
+    ItemDef("058", "Mustard Oil (Average Quality)", "1 Kg", "kg", 1.0, "cooking_oil", 0.30, True, False,
+            785.00, 0.012, ("Mustard Oil (Average Quality)",)),
+    ItemDef("059", "Vegetable Ghee Superior 1 kg Pouch", "Each", "each", 1.0, "cooking_oil", 1.20, True, False,
+            890.00, 0.009,
+            ("Vegetable Ghee DALDA/HABIB or Other superior Quality 1 kg Pouch",)),
+    ItemDef("060", "Cooked Daal at Average Hotel", "Per Plate", "plate", 1.0, "services", 0.30, True, False,
+            190.00, 0.012, ("Cooked Daal at Average Hotel",)),
+    ItemDef("061", "Cigarettes Capstan 20'S Packet", "Each", "each", 1.0, "other", 0.55, False, False,
+            620.00, 0.004, ("Cigarettes Capstan 20'S Packet",)),
+    ItemDef("062", "Shirting (Average Quality)", "1 mtr", "metre", 1.0, "clothing_footwear", 0.30, False, False,
+            480.00, 0.006, ("Shirting (Average Quality)",)),
+    ItemDef("063", "Lawn Printed Gul Ahmed/Al Karam", "1 mtr", "metre", 1.0, "clothing_footwear", 0.25, False, False,
+            720.00, 0.006, ("Lawn Printed Gul Ahmed/Al Karam",)),
+    ItemDef("064", "Georgette (Average Quality)", "1 mtr", "metre", 1.0, "clothing_footwear", 0.15, False, False,
+            890.00, 0.006, ("Georgette (Average Quality)",)),
+    ItemDef("065", "Gents Sponge Chappal Bata", "Pair", "pair", 1.0, "clothing_footwear", 0.25, False, False,
+            950.00, 0.006, ("Gents Sponge Chappal Bata",)),
+    ItemDef("066", "Ladies Sandal Bata", "Pair", "pair", 1.0, "clothing_footwear", 0.30, False, False,
+            1850.00, 0.006, ("Ladies Sandal Bata",)),
+    ItemDef("067", "Firewood Whole", "40 Kg", "kg", 40.0, "fuel_energy", 0.35, False, False,
+            1360.00, 0.012, ("Firewood Whole",)),
+    ItemDef("068", "Energy Saver Philips 14 Watt", "Each", "each", 1.0, "household", 0.10, False, False,
+            540.00, 0.005, ("Energy Saver Philips 14 Watt",)),
+    ItemDef("069", "Sufi Washing Soap 250 gm Cake", "Each", "each", 1.0, "household", 0.15, False, False,
+            95.00, 0.008, ("Sufi Washing Soap 250 gm Cake",)),
 )
 
 # The SPI basket proper (what the weekly national table covers; the headline 867).
@@ -181,6 +209,47 @@ for _it in ITEMS:
     ALIAS_INDEX[normalise_name(_it.item_en)] = _it.item_code
     for _a in _it.pbs_aliases:
         ALIAS_INDEX.setdefault(normalise_name(_a), _it.item_code)
+
+# Real PBS strings (verified on the 2026-08-27 annex by the spike) mapped to Bhao's
+# stable codes. This is the pbs_aliases mechanism doing its job: the seed catalog's
+# invented names differ from PBS's real ones, and these entries stop the first real
+# parse from forking every series into a "new" code.
+PBS_ALIASES_EXTRA: dict[str, str] = {
+    "Wheat Flour Bag": "001",
+    "Rice Basmati Broken (Average Quality)": "003",
+    "Rice IRRI-6/9 (Sindh/Punjab)": "004",
+    "Bread plain (Small Size)": "005",
+    "Milk fresh (Un-boiled)": "007",
+    "Powdered Milk NIDO 390 gm Polybag": "008",
+    "Curd (Dahi) Loose": "009",
+    "Cooking Oil DALDA or Other Similar Brand (SN), 5 Litre Tin": "011",
+    "Vegetable Ghee DALDA/HABIB 2.5 kg Tin": "012",
+    "Chicken Farm Broiler (Live)": "014",
+    "Eggs Hen (Farm)": "016",
+    "Beef with Bone (Average Quality)": "017",
+    "Mutton (Average Quality)": "018",
+    "Garlic (Lehsun)": "022",
+    "Bananas (Kela) Local": "027",
+    "Gur (Average Quality)": "031",
+    "Tea Lipton Yellow Label 190 gm Packet": "032",
+    "Salt Powdered (NATIONAL/SHAN) 800 gm Packet": "034",
+    "Chilies Powder NATIONAL 200 gm Packet": "035",
+    "Pulse Gram": "039",
+    "Pulse Moong (Washed)": "040",
+    "Pulse Mash (Washed)": "041",
+    "Pulse Masoor (Washed)": "042",
+    "Hi-Speed Diesel": "048",
+    "Electricity Charges for Q1": "050",
+    "Gas Charges for Q1": "051",
+    "Telephone Call Charges": "052",
+    "Cooked Beef at Average Hotel": "053",
+    "Tea Prepared Ordinary": "054",
+    "Gents Sandal Bata": "055",
+    'Long Cloth 57" Gul Ahmed/Al Karam': "056",
+    "LPG 11.67 kg Cylinder": "057",
+}
+for _raw, _code in PBS_ALIASES_EXTRA.items():
+    ALIAS_INDEX.setdefault(normalise_name(_raw), _code)
 
 # City-header regex from 03/04 — the "(NN)" suffix is the reliable signal.
 CITY_HEADER_RE = re.compile(r"^(?P<name>[A-Za-z\s\.\-']+?)\s*\((?P<code>\d{2})\)$")
