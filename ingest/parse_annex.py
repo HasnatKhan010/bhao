@@ -156,6 +156,12 @@ def parse_annex(
                 pmin = coerce_number(triple[0].value)
                 pavg = coerce_number(triple[1].value)
                 pmax = coerce_number(triple[2].value)
+                # `-` AND a printed 0 both mean "no quote" — PBS prints 0.00 for
+                # not-surveyed cells in some months (verified: Rice IRRI-6 in
+                # Gujranwala/Sialkot/Lahore, Oct 2025 - Jan 2026). A price of
+                # Rs 0 does not exist; null it like "-".
+                if (pmin, pavg, pmax) == (0.0, 0.0, 0.0) or pavg == 0:
+                    pmin = pavg = pmax = None
                 # `-` means not surveyed → all three None; row kept
                 if pmin is None and pavg is None and pmax is None:
                     out.rows.append(AnnexRow(sr_i, name_v.strip(), unit_v.strip(), city.code, None, None, None))

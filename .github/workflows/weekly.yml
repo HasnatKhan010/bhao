@@ -1,0 +1,91 @@
+# The weekly run — Sunday 06:00 PKT (01:00 UTC).
+# Scrape → validate → publish → score → drift → forecast → maybe retrain → deploy.
+# On failure: open a GitHub issue with the log tail. The site keeps serving last
+# week's panel — a stale-but-correct panel beats a fresh-but-wrong one.
+# A green run history stretching back months is proof of operation no README claim
+# can match. When it goes red, fix it rather than disabling it.
+name: weekly
+
+on:
+  schedule:
+    - cron: "0 1 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  weekly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Restore data cache
+        uses: actions/cache@v4
+        with:
+          path: data
+          key: bhao-data-${{ github.run_id }}
+          restore-keys: bhao-data-
+
+      - name: Weekly flow — scrape, validate, publish, score, drift, forecast
+        id: flow
+        run: |
+          set -o pipefail
+          python -m orchestration.weekly 2>&1 | tee weekly_ingest.log
+          python -m evaluation.run_pipeline 2>&1 | tee weekly_model.log
+
+      - name: Healthcheck (panel_week within 10 days)
+        run: |
+          python - <<'EOF'
+          import json, sys
+          sys.path.insert(0, ".")
+          from ops.healthcheck import check
+          from pathlib import Path
+          import pandas as pd
+          # check against the on-disk panel, no server needed in CI
+          panel = pd.read_parquet("data/panel/prices_weekly.parquet")
+          week = sorted(set(pd.to_datetime(panel["week_ending"]).dt.date))[-1]
+          age = (pd.Timestamp.utcnow().date() - week).days
+          print(json.dumps({"panel_week": str(week), "age_days": int(age)}))
+          sys.exit(0 if age <= 10 else 2)
+          EOF
+
+      - name: Publish dataset to the release
+        run: |
+          python - <<'EOF'
+          import pandas as pd
+          p = pd.read_parquet("data/panel/prices_weekly.parquet")
+          p.to_csv("panel.csv", index=False)
+          EOF
+          gh release upload release --clobber panel.csv data/panel/prices_weekly.parquet data/raw/coverage_report.csv || \
+            gh release create release panel.csv data/panel/prices_weekly.parquet data/raw/coverage_report.csv \
+              --title "Bhao dataset" --notes "Weekly panel, coverage report. See /data for the citation line."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Open an issue on failure
+        if: failure()
+        run: |
+          gh issue create \
+            --title "Weekly run failed $(date -u +%F)" \
+            --body "The weekly pipeline failed. Log tails below — the site keeps serving last week's panel.
+
+          \`\`\`
+          $(tail -50 weekly_ingest.log 2>/dev/null || echo 'no ingest log')
+          $(tail -50 weekly_model.log 2>/dev/null || echo 'no model log')
+          \`\`\`" \
+            --label "weekly-failure" || echo "issue creation failed (non-blocking)"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

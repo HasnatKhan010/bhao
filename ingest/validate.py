@@ -87,6 +87,11 @@ def quarantine_sanity(new_prices: pd.DataFrame, panel: pd.DataFrame) -> pd.DataF
         & joined["price_avg"].notna()
         & ((joined["price_avg"] > 5 * med) | (joined["price_avg"] < 0.2 * med))
     )
+    # a price of Rs 0 is not a price — parse artifact or a sheet printing 0 for
+    # "no quote". Quarantine, never publish.
+    bad |= joined["price_avg"] <= 0
+    bad |= joined["price_min"].le(0) & joined["price_min"].notna()
+    bad |= joined["price_max"].le(0) & joined["price_max"].notna()
     if bad.any():
         q = joined[bad].copy()
         q["quarantined_at"] = dt.datetime.now(dt.UTC).isoformat(timespec="seconds")

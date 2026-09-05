@@ -67,6 +67,12 @@ def snaive_denominator(series: pd.Series, season: int = SNAIVE_SEASON) -> float:
     Falls back to season=4 when the training series is shorter than 2×52 weeks
     (a short panel is a fact, and the methodology must say which denominator was
     used — this function records it via `denominator_season`).
+
+    Administered series (petrol, electricity, gas) are exactly flat between policy
+    steps: their in-sample naive MAE is 0, which would make MASE = err/0 = inf for
+    EVERY model. The denominator is floored at 1% of the series' own median so a
+    model that fails to call a policy step gets a large-but-finite (and honest)
+    scaled error instead of an undefined one.
     """
     s = series.dropna()
     if len(s) < season + 2:
@@ -75,7 +81,8 @@ def snaive_denominator(series: pd.Series, season: int = SNAIVE_SEASON) -> float:
         return float("nan")
     y = s.to_numpy(dtype=float)
     errs = np.abs(y[season:] - y[:-season])
-    return float(errs.mean())
+    scale = 0.01 * float(np.nanmedian(y)) if len(y) else 1.0
+    return float(max(errs.mean(), scale))
 
 
 def denominator_season(series: pd.Series, season: int = SNAIVE_SEASON) -> int:
@@ -92,12 +99,14 @@ def rw_denominator(series: pd.Series) -> float:
     dominated by drift rather than by forecast difficulty. Against that denominator
     even a random walk scores MASE ≈ 0.15, which says nothing about the model. The
     lag-1 denominator is the bar 06-TRACK-B-MODEL.md actually calls hard to beat.
+    Floored the same way as the seasonal denominator for flat administered series.
     """
     s = series.dropna()
     if len(s) < 3:
         return float("nan")
     y = s.to_numpy(dtype=float)
-    return float(np.abs(y[1:] - y[:-1]).mean())
+    scale = 0.01 * float(np.nanmedian(y))
+    return float(max(np.abs(y[1:] - y[:-1]).mean(), scale))
 
 
 def mase_per_row(

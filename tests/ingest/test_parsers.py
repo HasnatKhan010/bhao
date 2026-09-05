@@ -318,7 +318,7 @@ class TestRealFileSmoke:
         for p in paths:
             try:
                 cand = parse_annex(p)
-            except AssertionError:
+            except (AssertionError, KeyError):  # not a weekly annex / error page
                 continue
             if len(cand.city_codes) == 17:
                 out = cand

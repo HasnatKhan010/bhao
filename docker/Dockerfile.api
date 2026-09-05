@@ -1,0 +1,34 @@
+# Bhao API — multi-stage, CPU-only. The API reads parquet via DuckDB and never
+# imports training code, so the image stays small and a broken training run
+# cannot take the site down.
+FROM python:3.11-slim AS builder
+
+WORKDIR /app
+COPY pyproject.toml README.md ./
+COPY contracts ./contracts
+COPY ingest ./ingest
+COPY orchestration ./orchestration
+COPY features ./features
+COPY models ./models
+COPY evaluation ./evaluation
+COPY drift ./drift
+COPY registry ./registry
+COPY api ./api
+COPY ops ./ops
+RUN pip install --no-cache-dir --prefix=/install .
+
+FROM python:3.11-slim
+
+WORKDIR /app
+COPY --from=builder /install /usr/local
+COPY --from=builder /app /app
+
+# data/ is mounted as a volume (panel + forecasts + registry)
+ENV BHAO_DATA_DIR=/app/data
+ENV BHAO_API_PORT=8000
+EXPOSE 8000
+
+HEALTHCHECK --interval=60s --timeout=5s --retries=3 \
+  CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/health', timeout=4).status==200 else 1)"
+
+CMD ["python", "-m", "uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]

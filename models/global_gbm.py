@@ -79,7 +79,8 @@ class GlobalGBM:
     def fit(self, feats: pd.DataFrame, made_on=None) -> "GlobalGBM":
         import lightgbm as lgb
 
-        train = feats[feats["target"].notna()].copy()
+        # non-positive targets are parse artifacts (log undefined) — never train on them
+        train = feats[feats["target"].notna() & (feats["target"] > 0)].copy()
         if train.empty:
             raise ValueError("no rows with a target: cannot fit")
         self.feature_cols = [c for c in feature_columns(train) if c != "target"]
@@ -100,7 +101,14 @@ class GlobalGBM:
         preds = {}
         for name in QUANTILES:
             raw = self.models[name].predict(X)
-            preds[name] = np.exp(raw) if self.log_target else raw
+            if self.log_target:
+                # clip before exp: exp(12) ≈ Rs 163k is above any item in the basket
+                # (the Rs-17,000 extreme logs to 9.7); a badly-fitted leaf must
+                # produce a bounded price, not inf poisoning every pooled metric
+                raw = np.clip(raw, -2, 12)
+                preds[name] = np.exp(raw)
+            else:
+                preds[name] = raw
         out = pd.DataFrame(preds, index=feats.index)
         # enforce p10 <= p50 <= p90 by sorting the three outputs per row
         q = np.sort(out[["p10", "p50", "p90"]].to_numpy(dtype=float), axis=1)

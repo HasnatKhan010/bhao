@@ -1,0 +1,32 @@
+# One `docker compose up` reproduces the whole thing from a clean clone.
+# The data volume carries the panel + forecasts + registry; the weekly GitHub
+# Actions run refreshes it, and locally `make weekly` writes into the same volume.
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+    ports:
+      - "8000:8000"
+    environment:
+      BHAO_DATA_DIR: /app/data
+    volumes:
+      - bhao-data:/app/data
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.web
+    ports:
+      - "3000:3000"
+    environment:
+      # server-side fetches go straight to the api service
+      NEXT_PUBLIC_BHAO_API_URL: http://localhost:8000
+      BHAO_API_URL: http://api:8000
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  bhao-data:

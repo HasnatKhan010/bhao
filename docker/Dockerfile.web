@@ -1,0 +1,22 @@
+# Bhao web — Next.js standalone build.
+FROM node:20-slim AS deps
+WORKDIR /web
+COPY web/package.json web/package-lock.json* ./
+RUN npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+
+FROM node:20-slim AS builder
+WORKDIR /web
+COPY --from=deps /web/node_modules ./node_modules
+COPY web ./
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN npm run build
+
+FROM node:20-slim AS runner
+WORKDIR /web
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+COPY --from=builder /web/.next/standalone ./
+COPY --from=builder /web/.next/static ./.next/static
+COPY --from=builder /web/public ./public
+EXPOSE 3000
+CMD ["node", "server.js"]

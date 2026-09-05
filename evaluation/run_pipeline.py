@@ -114,10 +114,41 @@ def write_runtime_artefacts(panel, items, nat, n_folds=12, include_slow=True,
                                 season=summary.get("effective_season", summary.get("season_used", 4)))
     fc.to_parquet(config.FORECASTS_DIR / "forecasts.parquet", index=False)
     metrics.to_parquet(config.FORECASTS_DIR / "metrics.parquet", index=False)
-    champion = "global_gbm" if include_gbm and champ_win is not np.nan and champ_win > 0.5 else "seasonal_naive"
+
+    # Champion = the gate winner: the model with the lowest backtest MASE among
+    # those evaluated. On weekly retail prices that is often the random walk —
+    # exactly the outcome 12-RISKS.md R1 predicts. Publishing "the GBM wins"
+    # because it beat only seasonal-naive while losing to the random walk would
+    # be the quiet dishonesty this project exists to avoid.
+    scored = table.dropna(subset=["mase"])
+    scored = scored[np.isfinite(scored["mase"])]
+    champion = str(scored["mase"].idxmin())
+    runner_up = scored.drop(index=champion)["mase"].idxmin() if len(scored) > 1 else None
+    gbm_mase = float(table.loc["global_gbm", "mase"]) if "global_gbm" in table.index else None
+    rw_mase = float(table.loc["random_walk", "mase"]) if "random_walk" in table.index else None
     reg = make_registry(include_gbm, {**summary, "n_series": panel.groupby(["city_code", "item_code"]).ngroups,
-                                      "n_rows": len(panel), "trained_through": sorted(set(pd.to_datetime(panel["week_ending"]).dt.date))[-1]},
+                                      "n_rows": len(panel),
+                                      "trained_through": sorted(set(pd.to_datetime(panel["week_ending"]).dt.date))[-1]},
                         table, champ_win, force_champion=champion)
+    reason = (
+        f"Champion after the backtest: {champion} MASE {table.loc[champion, 'mase']:.3f} over "
+        f"{int(summary.get('folds', 0))} rolling-origin folds of the {summary.get('effective_season', 4)}-week panel."
+    )
+    if champion == "random_walk" and gbm_mase is not None:
+        reason += (
+            f" The global GBM (MASE {gbm_mase:.3f}) does not beat the random walk on weekly "
+            f"retail prices — the outcome 12-RISKS.md R1 predicts. It is re-evaluated every "
+            f"week as the panel deepens; the per-commodity table shows where it does win."
+        )
+    reg["models"][0]["promoted_because"] = reason
+    reg["promotion_log"].append({
+        "at": reg["updated_at"],
+        "from": None,
+        "to": champion,
+        "decision": "promote",
+        "reason": reason,
+        "trigger": f"backtest {summary.get('run_id')}",
+    })
     (config.REGISTRY_DIR / "model_registry.json").write_text(
         json.dumps(reg, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print("\nBASELINE TABLE:", table.to_string())

@@ -53,6 +53,47 @@ Blocking? Yes/No — and if no, what you're doing instead.
 
 <!-- ▲▲▲ ADD NEW ENTRIES DIRECTLY BELOW THIS LINE ▲▲▲ -->
 
+## 2026-09-06 01:30 — ALL — GATE 3 REACHED (single-session run)
+Deployed artefacts on disk; cron + Docker + healthcheck wired. The honest results:
+
+| model | MASE (snaive-4) | MASE_rw (lag-1) | sMAPE | MAE | coverage@80 |
+|---|---|---|---|---|---|
+| **random_walk (champion)** | **0.321** | **0.557** | **2.12%** | **Rs 10.74** | **88.3%** |
+| drift | 0.468 | 0.850 | 2.64% | Rs 14.51 | 59.1% |
+| global_gbm | 0.665 | 1.136 | 3.10% | Rs 20.62 | 77.9% |
+| seasonal_naive_ma | 0.703 | 1.220 | 4.02% | Rs 17.41 | 68.5% |
+| seasonal_naive | 1.017 | 1.810 | 6.31% | Rs 23.68 | 77.1% |
+
+5 scorable folds of the 27-week panel, h=1, 867 series, as_of() in every fold.
+**The GBM loses to the random walk** — R1's predicted outcome, published, not hidden.
+Champion = random_walk, with the reason in the promotion log. The GBM is re-evaluated
+weekly as the panel deepens.
+Blocking? No.
+
+## 2026-09-06 01:20 — B — FINDING — real drift detected on real data
+First drift pass over the live panel: PSI 0.134 (warn) on vol_ratio_4_26, KS fired on
+lag_1 / roll_mean_4 / roll_mean_8 / pct_1 / vol_ratio_4_26. Consistent with onions
++25.3% and tomatoes moving in a single week (real movers, week ending 2026-09-03).
+11 rows, 6 fired — every one a sentence, not a dict dump. Plus the fixture's planted
+σ×4 regime shift is caught by PSI (>0.25), KS (p<0.01) and Page–Hinkley (tuned:
+δ=0.02, λ=2.0 — recorded in drift/thresholds.py). Gate 3's "at least one real drift
+row" is met with genuine data.
+
+## 2026-09-06 01:10 — A — QUARANTINE + parse fix
+The sheets print **0** for "no quote" (Rice IRRI-6, Gujranwala/Sialkot/Lahore, Oct
+2025–Jan 2026) — 81 cells parsed as Rs 0 and briefly poisoned the GBM (log(0) → −inf
+targets → 10^16 predictions). Parser now nulls 0 like "-"; validator quarantines
+price ≤ 0; the 81 rows are nulled in the panel and logged in quarantine.csv. The
+panel also gained 26 backfilled weeks (27 total, 2025-10-30 → 2026-09-03) and the
+as_of() semantics were corrected: revision-0 rows are knowable by week (fetch time is
+an artifact of backfill); only restatements gate on ingested_at.
+Blocking? No.
+
+## 2026-09-06 01:00 — C — PHASE 3 DONE
+weekly.yml cron (Sun 06:00 PKT), Dockerfile.api/web + compose, ops/healthcheck.py
+(panel_week within 10 days, exit 2 when stale), full README with only metrics.parquet
+numbers. Web app builds clean (10 pages × 2 locales).
+
 ## 2026-09-05 16:40 — B — FINDING — the MASE denominator needs a second column
 The frozen headline metric is MASE against **in-sample one-step seasonal-naive
 (lag-52)** MAE per series (10-EVALUATION.md). On this panel that denominator is
