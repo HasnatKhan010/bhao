@@ -53,6 +53,12 @@ Blocking? Yes/No — and if no, what you're doing instead.
 
 <!-- ▲▲▲ ADD NEW ENTRIES DIRECTLY BELOW THIS LINE ▲▲▲ -->
 
+## 2026-09-06 02:20 — C — WORKFLOW CHANGE — main is PR-locked
+Branch protection is on: direct pushes to `main` are refused for everyone
+(enforce_admins). Every change goes: branch → push → `gh pr create` → CI green →
+squash merge (branch auto-deletes). First PR under the new regime wires the model +
+drift stages into the weekly flow (#1).
+
 ## 2026-09-06 01:30 — ALL — GATE 3 REACHED (single-session run)
 Deployed artefacts on disk; cron + Docker + healthcheck wired. The honest results:
 

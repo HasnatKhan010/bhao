@@ -195,10 +195,15 @@ def write_runtime_artefacts(
     )
     print("\nBASELINE TABLE:", table.to_string())
     print(f"\nchampion: {champion} | beat_seasonal_naive_pct: {champ_win}")
+    from drift.run_checks import run as run_drift_checks
+
+    drift_df = run_drift_checks(run_id=summary["run_id"])
+    print(f"drift: {len(drift_df)} rows, {int(drift_df['fired'].sum())} fired")
     return {
         "forecast_rows": len(fc),
         "metric_rows": len(metrics),
         "champion": champion,
+        "drift_fired": int(drift_df["fired"].sum()),
         "table": table,
         "summary": summary,
     }
