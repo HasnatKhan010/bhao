@@ -95,7 +95,9 @@ export interface DriftRow {
 
 async function get<T>(path: string): Promise<{ data: T; meta: Meta }> {
   const res = await fetch(`${API_BASE}${path}`, {
-    next: { revalidate: 60 },
+    // the API sends max-age=3600 for CDNs; the app itself must always render
+    // the latest pipeline output, so the browser bypasses its own HTTP cache
+    cache: "no-store",
     headers: { Accept: "application/json" },
   });
   if (!res.ok) {
@@ -109,8 +111,18 @@ export const api = {
   cities: () => get<City[]>("/api/cities"),
   items: (category?: string) =>
     get<Item[]>(`/api/items${category ? `?category=${category}` : ""}`),
-  forecast: (city: string, item: string) =>
-    get<Forecast>(`/api/forecast?city_code=${city}&item_code=${item}&history_weeks=78`),
+  forecast: async (city: string, item: string): Promise<Forecast> => {
+    // /api/forecast returns the forecast object itself (Contract 3), not {data, meta}
+    const res = await fetch(
+      `${API_BASE}/api/forecast?city_code=${city}&item_code=${item}&history_weeks=78`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body?.error?.message ?? `HTTP ${res.status}`);
+    }
+    return res.json();
+  },
   movers: (limit = 10, direction = "both") =>
     get<Mover[]>(`/api/movers?limit=${limit}&direction=${direction}`),
   scorecard: (scope = "overall", limit = 300) =>

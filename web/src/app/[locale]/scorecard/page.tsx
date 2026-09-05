@@ -70,7 +70,7 @@ export default function ScorecardPage() {
 
       <section>
         <h2 className="mb-2 text-lg font-semibold">
-          {t("scorecard.mase")} {t("scorecard.maseRw") !== "MASE vs last-week" ? t("scorecard.maseRw") : "per commodity (champion)"}
+          {t("scorecard.mase")} per commodity — global GBM (the challenger; champion is the random walk)
         </h2>
         <table className="w-full border-collapse overflow-hidden rounded-xl bg-white text-sm shadow-sm">
           <thead>

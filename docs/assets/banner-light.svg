@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" role="img" aria-label="Bhao banner">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f0fdf4"/><stop offset="1" stop-color="#ffffff"/>
+    </linearGradient>
+    <linearGradient id="band" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#059669" stop-opacity=".28"/>
+      <stop offset="1" stop-color="#059669" stop-opacity=".05"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="300" fill="url(#bg)"/>
+  <g font-family="system-ui,'Segoe UI',Roboto,sans-serif">
+    <text x="72" y="128" font-size="84" font-weight="800" fill="#052e16">&#1576;&#1726;&#1575;&#1569;</text>
+    <text x="300" y="118" font-size="64" font-weight="800" fill="#059669">Bhao</text>
+    <text x="74" y="176" font-size="21" fill="#475569">What things cost in Pakistan, weekly &#8212; and what they&#8217;ll cost next week.</text>
+    <g font-size="14.5">
+      <rect x="74"  y="204" width="182" height="34" rx="17" fill="#f1f5f9"/>
+      <text x="90"  y="226" fill="#052e16" font-weight="600">17 cities &#183; 51 items</text>
+      <rect x="268" y="204" width="176" height="34" rx="17" fill="#f1f5f9"/>
+      <text x="284" y="226" fill="#052e16" font-weight="600">867 series, weekly</text>
+      <rect x="456" y="204" width="216" height="34" rx="17" fill="#f1f5f9"/>
+      <text x="472" y="226" fill="#052e16" font-weight="600">h=1 forecast + p10/p90</text>
+      <rect x="684" y="204" width="222" height="34" rx="17" fill="#f1f5f9"/>
+      <text x="700" y="226" fill="#052e16" font-weight="600">every error published</text>
+      <rect x="918" y="204" width="208" height="34" rx="17" fill="#f1f5f9"/>
+      <text x="934" y="226" fill="#052e16" font-weight="600">&#1575;&#1585;&#1583;&#1608; / English &#183; RTL</text>
+    </g>
+  </g>
+  <g transform="translate(760,40)">
+    <rect x="0" y="0" width="360" height="150" rx="14" fill="#ffffff" stroke="#cbd5e1"/>
+    <g stroke="#e2e8f0" stroke-width="1">
+      <line x1="18" y1="35" x2="342" y2="35"/><line x1="18" y1="75" x2="342" y2="75"/>
+      <line x1="18" y1="115" x2="342" y2="115"/>
+    </g>
+    <path d="M18,108 L48,100 L78,104 L108,88 L138,96 L168,72 L198,84 L228,66 L258,74 L288,52" fill="none" stroke="#0d9488" stroke-width="3" stroke-linecap="round"/>
+    <path d="M288,52 L342,34 L342,86 L288,66 Z" fill="url(#band)"/>
+    <path d="M288,52 L342,34" stroke="#059669" stroke-width="2.5" stroke-dasharray="6 5" fill="none"/>
+    <path d="M288,66 L342,86" stroke="#059669" stroke-width="2.5" stroke-dasharray="6 5" fill="none"/>
+    <line x1="288" y1="59" x2="342" y2="59" stroke="#059669" stroke-width="3"/>
+    <circle cx="288" cy="59" r="4.5" fill="#059669"/>
+    <g font-size="12" fill="#475569">
+      <text x="22" y="142">observed</text>
+      <text x="282" y="142" fill="#059669" font-weight="600">forecast p10&#8211;p90</text>
+    </g>
+  </g>
+</svg>

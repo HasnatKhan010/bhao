@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="470" viewBox="0 0 1200 470" role="img" aria-label="Bhao architecture">
+  <defs>
+    <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="470" fill="#0f172a"/>
+  <g font-family="system-ui,'Segoe UI',Roboto,sans-serif">
+    <g font-size="13" font-weight="700" fill="#94a3b8">
+      <text x="120" y="42" letter-spacing="2">TRACK A &#183; INGEST</text>
+      <text x="470" y="42" letter-spacing="2">TRACK B &#183; MODEL</text>
+      <text x="840" y="42" letter-spacing="2">TRACK C &#183; SERVE</text>
+    </g>
+    <rect x="30" y="60" width="210" height="150" rx="10" fill="#1e293b" stroke="#334155"/><rect x="30" y="60" width="4" height="150" rx="2" fill="#f59e0b"/><text x="46" y="88" font-size="15.5" font-weight="700" fill="#f1f5f9">Sources</text><text x="46" y="110" font-size="13.5" fill="#94a3b8">PBS weekly SPI (xlsx)</text><text x="46" y="132" font-size="13.5" fill="#94a3b8">Wayback CDX backfill</text><text x="46" y="154" font-size="13.5" fill="#94a3b8">WFP/HDX monthly</text>
+    <rect x="30" y="240" width="210" height="130" rx="10" fill="#1e293b" stroke="#334155"/><rect x="30" y="240" width="4" height="130" rx="2" fill="#34d399"/><text x="46" y="268" font-size="15.5" font-weight="700" fill="#f1f5f9">Ingest pipeline</text><text x="46" y="290" font-size="13.5" fill="#94a3b8">discover &#183; fetch</text><text x="46" y="312" font-size="13.5" fill="#94a3b8">parse (regex blocks)</text><text x="46" y="334" font-size="13.5" fill="#94a3b8">validate (Pandera)</text><text x="46" y="356" font-size="13.5" fill="#94a3b8">publish (revisions)</text>
+    <rect x="280" y="150" width="170" height="120" rx="10" fill="#052e16" stroke="#065f46" stroke-dasharray="5 4"/><text x="296" y="178" font-size="14.5" font-weight="700" fill="#34d399">data/panel</text><text x="296" y="204" font-size="13" fill="#94a3b8">prices_weekly</text><text x="296" y="226" font-size="13" fill="#94a3b8">items &#183; cities</text><text x="296" y="248" font-size="13" fill="#94a3b8">national_weekly</text>
+    <rect x="490" y="60" width="210" height="110" rx="10" fill="#1e293b" stroke="#334155"/><rect x="490" y="60" width="4" height="110" rx="2" fill="#34d399"/><text x="506" y="88" font-size="15.5" font-weight="700" fill="#f1f5f9">Features</text><text x="506" y="110" font-size="13.5" fill="#94a3b8">lags &#183; rolls &#183; spread</text><text x="506" y="132" font-size="13.5" fill="#94a3b8">Hijri / Ramadan flags</text><text x="506" y="154" font-size="13.5" fill="#94a3b8">lagged cross-sectional</text>
+    <rect x="490" y="200" width="210" height="110" rx="10" fill="#1e293b" stroke="#334155"/><rect x="490" y="200" width="4" height="110" rx="2" fill="#34d399"/><text x="506" y="228" font-size="15.5" font-weight="700" fill="#f1f5f9">Models</text><text x="506" y="250" font-size="13.5" fill="#94a3b8">6 statistical baselines</text><text x="506" y="272" font-size="13.5" fill="#94a3b8">pooled quantile GBM</text><text x="506" y="294" font-size="13.5" fill="#94a3b8">per-series ensemble</text>
+    <rect x="490" y="340" width="210" height="100" rx="10" fill="#1e293b" stroke="#334155"/><rect x="490" y="340" width="4" height="100" rx="2" fill="#34d399"/><text x="506" y="368" font-size="15.5" font-weight="700" fill="#f1f5f9">Evaluation</text><text x="506" y="390" font-size="13.5" fill="#94a3b8">rolling-origin folds</text><text x="506" y="412" font-size="13.5" fill="#94a3b8">as_of() every fold</text><text x="506" y="434" font-size="13.5" fill="#94a3b8">MASE + coverage</text>
+    <rect x="740" y="150" width="170" height="120" rx="10" fill="#052e16" stroke="#065f46" stroke-dasharray="5 4"/><text x="756" y="178" font-size="14.5" font-weight="700" fill="#34d399">data/forecasts</text><text x="756" y="204" font-size="13" fill="#94a3b8">forecasts</text><text x="756" y="226" font-size="13" fill="#94a3b8">metrics</text><text x="756" y="248" font-size="13" fill="#94a3b8">drift</text>
+    <rect x="950" y="60" width="220" height="110" rx="10" fill="#1e293b" stroke="#334155"/><rect x="950" y="60" width="4" height="110" rx="2" fill="#34d399"/><text x="966" y="88" font-size="15.5" font-weight="700" fill="#f1f5f9">API</text><text x="966" y="110" font-size="13.5" fill="#94a3b8">FastAPI + DuckDB</text><text x="966" y="132" font-size="13.5" fill="#94a3b8">read-only, no ML</text><text x="966" y="154" font-size="13.5" fill="#94a3b8">OpenAPI contract</text>
+    <rect x="950" y="200" width="220" height="110" rx="10" fill="#1e293b" stroke="#334155"/><rect x="950" y="200" width="4" height="110" rx="2" fill="#34d399"/><text x="966" y="228" font-size="15.5" font-weight="700" fill="#f1f5f9">Web app</text><text x="966" y="250" font-size="13.5" fill="#94a3b8">Next.js bilingual</text><text x="966" y="272" font-size="13.5" fill="#94a3b8">Urdu RTL &#183; Nastaliq</text><text x="966" y="294" font-size="13.5" fill="#94a3b8">charts with honest gaps</text>
+    <rect x="950" y="340" width="220" height="100" rx="10" fill="#1e293b" stroke="#334155"/><rect x="950" y="340" width="4" height="100" rx="2" fill="#34d399"/><text x="966" y="368" font-size="15.5" font-weight="700" fill="#f1f5f9">Ops</text><text x="966" y="390" font-size="13.5" fill="#94a3b8">GH Actions weekly cron</text><text x="966" y="412" font-size="13.5" fill="#94a3b8">docker compose</text><text x="966" y="434" font-size="13.5" fill="#94a3b8">healthcheck on freshness</text>
+    <line x1="240" y1="135" x2="278" y2="185" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr2)"/>
+    <line x1="240" y1="305" x2="278" y2="225" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr2)"/>
+    <line x1="450" y1="200" x2="488" y2="115" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr2)"/>
+    <line x1="450" y1="200" x2="488" y2="255" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr2)"/>
+    <line x1="700" y1="115" x2="738" y2="185" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr2)"/>
+    <line x1="700" y1="255" x2="738" y2="215" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr2)"/>
+    <line x1="700" y1="390" x2="948" y2="390" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr2)"/>
+    <line x1="910" y1="210" x2="948" y2="125" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr2)"/>
+    <line x1="910" y1="210" x2="948" y2="255" stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arr2)"/>
+    <rect x="30" y="418" width="1140" height="34" rx="8" fill="none" stroke="#334155"/>
+    <text x="46" y="440" font-size="13.5" fill="#94a3b8">The API never imports training code &#8212; it reads parquet via DuckDB only. A broken training run cannot take the site down. Every price row carries its source URL.</text>
+  </g>
+</svg>
