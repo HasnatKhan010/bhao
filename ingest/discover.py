@@ -23,7 +23,7 @@ from pathlib import Path
 import requests
 
 from ingest import config
-from ingest.fetch import cdx_query, fetch
+from ingest.fetch import cdx_query, fetch, fetch_wayback
 
 POST_SLUG = "weekly-sensitive-price-indicator-spi-for-the-week-ended-on-{dd}-{mm}-{yyyy}"
 SITEMAP_URL = f"{config.PBS_BASE}/post-sitemap.xml"
@@ -151,37 +151,57 @@ def _from_constructed_url(week: dt.date, session: requests.Session, refs: Report
     return bool(refs.spi_url or refs.annex_url)
 
 
-def _from_cdx(week: dt.date, refs: ReportRefs) -> bool:
-    rows = cdx_query(CDX_PATTERN, extra="collapse=urlkey&limit=5000&filter=original:.*[Aa]nnex.*")
-    stamp = week.strftime("%d.%m.%Y")
-    wanted = None
-    for row in rows:
+def cdx_file_map(session: requests.Session | None = None) -> dict[dt.date, list[tuple[str, str]]]:
+    """One CDX pass over the uploads folder → {week_ending_Thursday: [(ts, url), ...]}.
+
+    The xlsx files ARE in the archive (1,568 captures verified); the post pages are
+    not a reliable index for them. Build the map once per backfill run instead of
+    querying CDX per week.
+    """
+    out: dict[dt.date, list[tuple[str, str]]] = {}
+    for row in cdx_query(
+        "pbs.gov.pk/wp-content/uploads*",
+        extra="collapse=urlkey&limit=10000&filter=original:.*\\.xlsx.*",
+    ):
         original = row.get("original", "")
-        if stamp in original and original.lower().endswith(".xlsx"):
-            if "annex" in original.lower():
-                wanted = (row["timestamp"], original)
-                break
-    if not wanted:
-        rows2 = cdx_query(CDX_PATTERN, extra="collapse=urlkey&limit=5000&filter=original:.*[Ss][Pp][Ii].*")
-        for row in rows2:
-            original = row.get("original", "")
-            if stamp in original and original.lower().endswith(".xlsx"):
-                wanted = (row["timestamp"], original)
-                break
-    if not wanted:
-        return False
-    ts, original = wanted
-    refs.wayback_timestamp = ts
-    scheme = "https:" if original.startswith("//") else ""
-    if "annex" in original.lower():
-        refs.annex_url = f"{scheme}{original}" if scheme else original
-    else:
-        refs.spi_url = f"{scheme}{original}" if scheme else original
-    refs.strategy = "wayback_cdx"
-    return True
+        m = re.search(r"(\d{2})\.(\d{2})\.(\d{4})", original)
+        if not m:
+            continue
+        try:
+            d = dt.date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+        except ValueError:
+            continue
+        if d.weekday() != 3:  # Thursday
+            continue
+        out.setdefault(d, []).append((row["timestamp"], original))
+    for v in out.values():
+        v.sort()
+    return out
 
 
-def find_report(week: dt.date, session: requests.Session | None = None) -> ReportRefs | None:
+def _from_cdx(week: dt.date, refs: ReportRefs, cdx_map: dict[dt.date, list[tuple[str, str]]] | None = None) -> bool:
+    entries = cdx_map.get(week) if cdx_map is not None else None
+    if entries is None:
+        rows = cdx_query(CDX_PATTERN, extra="collapse=urlkey&limit=5000&filter=original:.*[Aa]nnex.*")
+        stamp = week.strftime("%d.%m.%Y")
+        entries = [(r["timestamp"], r["original"]) for r in rows
+                   if stamp in r.get("original", "")]
+    annex = next(((t, u) for t, u in entries if "annex" in u.lower()), None)
+    spi = next(((t, u) for t, u in entries if "spi" in u.lower() and "annex" not in u.lower()), None)
+    if annex:
+        refs.wayback_timestamp, refs.annex_url = annex
+        refs.strategy = "wayback_cdx"
+    if spi:
+        if refs.annex_url is None:
+            refs.wayback_timestamp, refs.annex_url = spi  # fallback: treat as the file
+        else:
+            refs.spi_url = spi[1]
+        refs.strategy = refs.strategy or "wayback_cdx"
+    return bool(refs.annex_url or refs.spi_url)
+
+
+def find_report(week: dt.date, session: requests.Session | None = None,
+                cdx_map: dict[dt.date, list[tuple[str, str]]] | None = None) -> ReportRefs | None:
     """Find the SPI report + annex for the week ending `week`. None if not found."""
     s = session or requests.Session()
     s.headers.setdefault("User-Agent", config.USER_AGENT)
@@ -194,7 +214,7 @@ def find_report(week: dt.date, session: requests.Session | None = None) -> Repor
         except requests.RequestException:
             continue
     try:
-        if _from_cdx(week, refs):
+        if _from_cdx(week, refs, cdx_map):
             _log_discovery(week, refs.strategy, refs.annex_url or refs.spi_url or "", "found", refs.tried)
             return refs
     except requests.RequestException:

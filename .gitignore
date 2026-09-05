@@ -1,17 +1,8 @@
 # --- Bhao gitignore ---
-# Written BEFORE any commit, per 07-TRACK-C-SERVE.md Phase 0.
-# `data/` is the on-disk integration point and must never be committed,
-# except directory keeps. `contracts/fixtures/` IS committed (shared truth).
-
-# data artefacts — everything, then re-include the keeps
 data/**
 !data/**/
 !data/**/.gitkeep
-
-# BUT fixtures are the shared truth — always committed
 !contracts/fixtures/**
-
-# python
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -25,28 +16,18 @@ venv/
 .pytest_cache/
 .coverage
 htmlcov/
-
-# mlflow / artefacts
 mlruns/
 mlartifacts/
-
-# node (web/)
 node_modules/
 .next/
 out/
 .turbo/
-
-# env / secrets
 .env
 .env.local
 .env*.local
-
-# editors / OS
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
-
-# scrap artefacts
 *.log
 logs/

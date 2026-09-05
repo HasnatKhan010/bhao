@@ -1,0 +1,98 @@
+{
+  "nav": {
+    "home": "Home",
+    "movers": "Movers",
+    "scorecard": "Scorecard",
+    "drift": "Drift",
+    "model": "Model",
+    "data": "Data",
+    "methodology": "Methodology",
+    "docs": "API docs"
+  },
+  "common": {
+    "thisWeek": "This week",
+    "lastWeek": "Last week",
+    "nextWeek": "Next week",
+    "range": "80% range",
+    "ourError": "Our average error over the last {n} weeks",
+    "chooseCity": "Choose your city",
+    "chooseItem": "Choose an item",
+    "forecast": "Forecast",
+    "loading": "Loading…",
+    "error": "Could not reach the Bhao API",
+    "insufficientHistory": "Insufficient history",
+    "notSurveyed": "Not surveyed",
+    "direction": { "up": "expected to rise", "down": "expected to fall", "flat": "expected to stay flat" },
+    "lastActualWeek": "as of {week}",
+    "panelWeek": "Panel week"
+  },
+  "banner": {
+    "fixture": "You are looking at synthetic sample data, not real prices."
+  },
+  "home": {
+    "tagline": "What things cost in Pakistan, weekly — and what they'll cost next week.",
+    "subtitle": "Prices from the Pakistan Bureau of Statistics weekly survey, made tidy, with honest one-week forecasts and a published record of how wrong we've been."
+  },
+  "scorecard": {
+    "title": "Scorecard",
+    "intro": "Every forecast this system has made, against what actually happened. MASE below 1 beats the naive seasonal forecast; coverage should be ≈ 80%.",
+    "mase": "MASE",
+    "smape": "sMAPE",
+    "mae": "MAE (Rs)",
+    "coverage": "coverage@80",
+    "bias": "bias",
+    "model": "model",
+    "week": "target week",
+    "naiveWins": "Where naive still wins",
+    "maseRw": "MASE vs last-week"
+  },
+  "drift": {
+    "title": "Drift log",
+    "intro": "When the world moves — a supply shock, a policy step — the model's inputs and residuals move too. Every check, fired or not, is logged here with a note a journalist could quote.",
+    "channel": "channel",
+    "test": "test",
+    "stat": "statistic",
+    "threshold": "threshold",
+    "fired": "fired",
+    "severity": "severity",
+    "note": "note"
+  },
+  "model": {
+    "title": "The model",
+    "intro": "The champion, its backtest, and every promotion decision — including the rejections.",
+    "champion": "current champion",
+    "backtest": "backtest",
+    "promotions": "promotion log",
+    "reason": "reason",
+    "trigger": "trigger",
+    "decision": "decision"
+  },
+  "data": {
+    "title": "Download the dataset",
+    "intro": "The tidy panel — one row per week, city and commodity — that nobody else publishes. Parquet and CSV, free, with provenance on every row.",
+    "parquet": "panel.parquet",
+    "csv": "panel.csv",
+    "schema": "Schema",
+    "licence": "Licence and citation",
+    "coverage": "Coverage report",
+    "cite": "Bhao. (2026). Pakistan weekly retail prices (panel). Retrieved from bhao.app. Source: Pakistan Bureau of Statistics, Weekly Sensitive Price Indicator."
+  },
+  "methodology": {
+    "title": "Methodology",
+    "intro": "How the numbers are produced, and the limits of what they mean. No number on this site exists without its baseline.",
+    "sources": "Sources",
+    "parse": "The parse",
+    "revisions": "Revisions",
+    "metrics": "Metrics",
+    "ethics": "Ethics",
+    "limitations": "Limitations",
+    "notAdvice": "Bhao is not financial or trading advice."
+  },
+  "movers": {
+    "title": "Movers of the week",
+    "intro": "Biggest weekly rises and falls across the 17 surveyed cities.",
+    "item": "item",
+    "price": "avg price",
+    "change": "change"
+  }
+}

@@ -25,7 +25,9 @@ class ValidationError(RuntimeError):
     pass
 
 
-def check_week_gap(new_week: dt.date, panel: pd.DataFrame) -> None:
+def check_week_gap(new_week: dt.date, panel: pd.DataFrame, skip: bool = False) -> None:
+    if skip:
+        return
     if panel.empty or "week_ending" not in panel.columns:
         return
     weeks = sorted(set(pd.to_datetime(panel["week_ending"]).dt.date))
@@ -120,9 +122,10 @@ def national_crosscheck(
         )
 
 
-def validate_prices(new_prices: pd.DataFrame, panel: pd.DataFrame, new_week: dt.date) -> pd.DataFrame:
+def validate_prices(new_prices: pd.DataFrame, panel: pd.DataFrame, new_week: dt.date,
+                    skip_gap: bool = False) -> pd.DataFrame:
     """Full gate: schema, then business rules. Raises ValidationError on any failure."""
     validate_frame(new_prices, "prices_weekly")
-    check_week_gap(new_week, panel)
+    check_week_gap(new_week, panel, skip=skip_gap)
     check_coverage(new_prices, panel)
     return quarantine_sanity(new_prices, panel)

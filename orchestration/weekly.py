@@ -54,10 +54,14 @@ def _city_means_by_code(prices: pd.DataFrame) -> dict[str, float]:
 def ingest_week(
     week_ending: dt.date, spi_path, annex_path, spi_url: str, annex_url: str,
     panel: pd.DataFrame | None = None, resolver: ItemResolver | None = None,
+    backfill: bool = False,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Parse + normalise + validate one week. Returns (new_panel, prices, national).
 
     Raises ValidationError on any business-rule failure — the caller must not publish.
+    `backfill=True` skips the week-gap check (only meaningful when appending the
+    newest week; the backfill ingests older weeks into a panel that already has
+    newer data). The schema, coverage and sanity checks always run.
     """
     resolver = resolver or ItemResolver()
     panel = panel if panel is not None else load_panel()
@@ -80,7 +84,7 @@ def ingest_week(
         _city_means_by_code(prices), _national_prices_by_code(spi, resolver)
     )
     # the full gate: schema + week gap + coverage + quarantine
-    prices = vld.validate_prices(prices, panel, week_ending)
+    prices = vld.validate_prices(prices, panel, week_ending, skip_gap=backfill)
 
     new_panel, n_revs = append_week(panel, prices)
     return new_panel, prices, national, n_revs
@@ -139,10 +143,10 @@ def find_report_for_latest(session) -> "object":  # noqa: F821
 
 
 def backfill_all(session=None) -> dict:
-    """One-off: walk every known week (sitemap + CDX), fetch, parse, publish.
+    """One-off: walk every Thursday the archive or live site offers, fetch, parse,
+    publish. Writes data/raw/coverage_report.csv — obtained or not, and from where.
 
-    Writes data/raw/coverage_report.csv for every Thursday from the earliest found
-    to now — obtained or not, and from where. Honest gaps, published.
+    The CDX file map (uploads/*.xlsx captures) is built ONCE, not queried per week.
     """
     import requests
 
@@ -150,9 +154,11 @@ def backfill_all(session=None) -> dict:
     session.headers["User-Agent"] = config.USER_AGENT
     config.ensure_dirs()
 
-    from ingest.discover import all_known_weeks
+    from ingest.discover import all_known_weeks, cdx_file_map
 
     known = all_known_weeks(session)
+    file_map = cdx_file_map(session)
+    known = sorted(set(known) | set(file_map))
     if not known:
         raise RuntimeError("no weeks discoverable at all")
     resolver = ItemResolver()
@@ -169,15 +175,24 @@ def backfill_all(session=None) -> dict:
 
     for week in every_thursday:
         status, src = "missing", ""
-        if week in known or week >= max(known) - dt.timedelta(days=21):
-            refs = find_report(week, session)
+        if week in known:
+            refs = find_report(week, session, cdx_map=file_map)
             if refs is not None:
-                paths = download_report(refs, session)
+                try:
+                    paths = download_report(refs, session)
+                except Exception as e:
+                    status, src = f"download_failed: {type(e).__name__}: {e}", refs.strategy or ""
+                    coverage_rows.append({
+                        "week_ending": week.isoformat(), "status": status, "source": src,
+                    })
+                    print(f"{week} {status[:70]}", flush=True)
+                    continue
                 if paths["spi"] and paths["annex"]:
                     try:
                         panel, _, _, n_revs = ingest_week(
                             week, paths["spi"], paths["annex"],
                             refs.spi_url or "", refs.annex_url or "", panel, resolver,
+                            backfill=True,
                         )
                         status, src = "ok", refs.strategy or ""
                         write_panel(panel)
@@ -185,6 +200,8 @@ def backfill_all(session=None) -> dict:
                         status, src = f"invalid: {e}", refs.strategy or ""
                     except AssertionError as e:
                         status, src = f"parse_assert: {e}", refs.strategy or ""
+                    except Exception as e:
+                        status, src = f"error: {type(e).__name__}: {e}", refs.strategy or ""
                 else:
                     status = "found_but_download_missing"
                 if refs.post_url:

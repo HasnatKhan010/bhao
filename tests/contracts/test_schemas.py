@@ -103,14 +103,16 @@ class TestAsOf:
         out = as_of(df, dt.date(2026, 1, 25))
         assert out.groupby(["week_ending", "city_code", "item_code"]).size().eq(1).all()
 
-    def test_row_ingested_late_is_invisible_until_it_arrives(self):
-        # week 2's first publication lands only on 2026-01-25
+    def test_revision_zero_is_knowable_by_week_not_by_fetch_time(self):
+        # PBS publishes on the Friday cadence; when a backfill fetched the file is
+        # an artifact. A rev-0 row whose week <= known_on is knowable even if WE
+        # fetched it later. Only restatements gate on ingested_at.
         df = pd.concat([
             _row(_week(1), avg=100.0, ingested=pd.Timestamp("2026-01-10T06:00:00Z")),
             _row(_week(2), avg=101.0, ingested=pd.Timestamp("2026-01-25T06:00:00Z")),
         ], ignore_index=True)
         out = as_of(df, dt.date(2026, 1, 20))
-        assert set(out["week_ending"]) == {_week(1)}
+        assert set(out["week_ending"]) == {_week(1), _week(2)}
 
     def test_accepts_iso_string(self):
         df = _row(_week(1))

@@ -34,6 +34,7 @@ class RunConfig:
     include_gbm: bool = True
     log_target: bool = True
     season: int = 52
+    min_train_weeks: int = 8    # per R3: with a short panel, K is reduced, not faked
 
 
 def fold_denominators(train: pd.DataFrame, season: int = 52) -> tuple[pd.Series, pd.Series, int]:
@@ -95,8 +96,13 @@ def run_backtest(
     """
     cfg = cfg or RunConfig()
     run_id = run_id or dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H-%M-%SZ")
-    folds = make_folds(panel, n_folds=cfg.n_folds)
+    folds = make_folds(panel, n_folds=cfg.n_folds, min_train_weeks=cfg.min_train_weeks)
     created = pd.Timestamp.now(dt.UTC).floor("s")
+
+    # R3 (12-RISKS.md): lag-52 needs ~2 years of panel. A shorter panel is a fact,
+    # not a scandal — the methodology says which season was actually used.
+    n_weeks = pd.to_datetime(panel["week_ending"]).dt.date.nunique()
+    effective_season = cfg.season if n_weeks >= 2 * cfg.season else 4
 
     model_fns = dict(B.FAST_BASELINES)
     if cfg.include_slow:
@@ -112,7 +118,7 @@ def run_backtest(
         train, ev = fold.train, fold.eval
         if ev.empty:
             continue
-        dens, dens_rw, used = fold_denominators(train, cfg.season)
+        dens, dens_rw, used = fold_denominators(train, effective_season)
         season_used = min(season_used, used)
 
         actual = ev[["city_code", "item_code", "price_avg"]].rename(columns={"price_avg": "actual"})
@@ -122,7 +128,7 @@ def run_backtest(
             if name == "arima":
                 out = fn(train, fold.target_week, order_cache=arima_cache)
             elif name in ("seasonal_naive",):
-                out = fn(train, fold.target_week, season=cfg.season)
+                out = fn(train, fold.target_week, season=effective_season)
             else:
                 out = fn(train, fold.target_week)
             preds[name] = out
@@ -183,6 +189,7 @@ def run_backtest(
         "run_id": run_id,
         "folds": int(fold_df["fold"].nunique()) if len(fold_df) else 0,
         "season_used": season_used,
+        "effective_season": effective_season,
         "features_version": FEATURES_VERSION,
     }
     return forecasts, fold_df, summary

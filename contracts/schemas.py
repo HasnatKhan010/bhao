@@ -89,21 +89,23 @@ def latest_revision(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def as_of(df: pd.DataFrame, known_on: dt.date | dt.datetime | str) -> pd.DataFrame:
-    """Anti-leakage view: only what was *knowable* at ``known_on``.
+    """Anti-leakage view: only what was *knowable* at ``known_on`` (made_on).
 
-    ``known_on`` is ``made_on`` — a week_ending (Thursday) anchor, not a wall-clock
-    cutoff. The forecast moment is when the ``known_on`` week's file was published,
-    so the publication date is read from the data itself: ``pub_date(known_on)`` is
-    the latest ``ingested_at`` date among first-publication rows for that week.
+    Two kinds of row, two rules:
 
-    A row qualifies if:
-    - its ``week_ending <= known_on`` (the survey period had happened), AND
-    - it had been ingested by ``pub_date(known_on)`` — late backfill and restatements
-      that arrived after the made_on file are invisible.
+    - **revision 0** (first publication): knowable iff ``week_ending <= known_on``.
+      PBS publishes the Friday after the surveyed Thursday, so the made_on week's
+      own rows are knowable at forecast time. When the panel is built by backfill,
+      ``ingested_at`` records when *we* fetched a file, not when PBS published it —
+      gating revision-0 rows on ``ingested_at`` would wrongly hide most of the
+      recovered history.
+    - **revision >= 1** (restatement): knowable iff ``week_ending <= known_on``
+      **and** ``ingested_at.date() <= known_on``. A restated figure that landed
+      after the forecast was made is not knowable, and training on it is the leak
+      that makes every metric in the project quietly false.
 
     Among the survivors, only the highest revision per series key is kept. Every
-    backtest fold calls this; training on a revision that landed after ``made_on``
-    is the leak that makes every metric in the project quietly false.
+    backtest fold calls this.
     """
     if isinstance(known_on, dt.datetime):
         known_on_d: dt.date = known_on.date()
@@ -111,19 +113,12 @@ def as_of(df: pd.DataFrame, known_on: dt.date | dt.datetime | str) -> pd.DataFra
         known_on_d = known_on
     else:
         known_on_d = dt.date.fromisoformat(str(known_on))
-    known_ts = pd.Timestamp(known_on_d)  # naive: dates are naive
+    known_ts = pd.Timestamp(known_on_d)
 
-    ingested_day = pd.to_datetime(df["ingested_at"], utc=True).dt.floor("D").dt.tz_localize(None)
     weeks = pd.to_datetime(df["week_ending"])
-
-    # when did the known_on week itself arrive? (data-driven publication anchor)
-    same_week = df.loc[(weeks == known_ts) & (df["revision"] == 0), "ingested_at"]
-    if len(same_week):
-        pub_ts = pd.to_datetime(same_week).max().floor("D").tz_localize(None)
-    else:
-        pub_ts = known_ts  # not a panel week: treat known_on as the wall-clock cutoff
-
-    knowable = (weeks <= known_ts) & (ingested_day <= pub_ts)
+    rev = df["revision"] if "revision" in df.columns else 0
+    ingested = pd.to_datetime(df["ingested_at"], utc=True).dt.date
+    knowable = (weeks <= known_ts) & ((rev == 0) | (ingested <= known_on_d))
     return latest_revision(df.loc[knowable].copy())
 
 
