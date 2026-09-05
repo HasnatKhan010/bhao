@@ -272,6 +272,7 @@ if __name__ == "__main__":
     if n_weeks < 12:
         raise SystemExit(
             f"panel has only {n_weeks} weeks - too young for a backtest. "
-            "Run the history bootstrap (make backfill) first; the weekly workflow does this automatically."
+            "Run the history bootstrap (make backfill) first; "
+            "the weekly workflow does this automatically."
         )
     write_runtime_artefacts(panel, items, nat)
