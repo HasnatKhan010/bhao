@@ -78,13 +78,13 @@ jobs:
       - name: Publish dataset to the release
         run: |
           python - <<'EOF'
-          import pandas as pd
+          import pandas as pd, shutil
           p = pd.read_parquet("data/panel/prices_weekly.parquet")
           p.to_csv("panel.csv", index=False)
+          shutil.copyfile("data/panel/prices_weekly.parquet", "panel.parquet")
           EOF
-          gh release upload release --clobber panel.csv data/panel/prices_weekly.parquet data/raw/coverage_report.csv || \
-            gh release create release panel.csv data/panel/prices_weekly.parquet data/raw/coverage_report.csv \
-              --title "Bhao dataset" --notes "Weekly panel, coverage report. See /data for the citation line."
+          gh release upload release --clobber panel.parquet panel.csv data/raw/coverage_report.csv ||             gh release create release panel.parquet panel.csv data/raw/coverage_report.csv               --title "Bhao dataset" --notes "Weekly panel, coverage report. See /data for the citation line."
+          gh release delete-asset release prices_weekly.parquet --yes || true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
