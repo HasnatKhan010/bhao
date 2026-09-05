@@ -43,6 +43,8 @@ spike:
 
 weekly:
 	$(PY) -m orchestration.weekly
+	$(PY) -m evaluation.run_pipeline
+	$(PY) -m drift.run_checks
 
 backfill:
 	$(PY) -m orchestration.backfill
