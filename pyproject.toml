@@ -63,7 +63,7 @@ include = [
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-exclude = ["web", "data", ".venv"]
+exclude = ["web", "data", "docs", ".venv"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B"]

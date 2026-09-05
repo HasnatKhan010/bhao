@@ -183,10 +183,10 @@ export default function HomePage() {
 
           <div className="mt-4 flex flex-wrap gap-2 text-sm">
             <Link href={`/item/${forecast.item_code}`} className="text-emerald-700 underline-offset-2 hover:underline">
-              {t("nav.home") === "Home" ? "All 17 cities for this item →" : "←"}
+              {t("home.allCities")}
             </Link>
             <Link href={`/scorecard`} className="text-emerald-700 underline-offset-2 hover:underline">
-              How wrong we&apos;ve been lately →
+              {t("home.howWrong")}
             </Link>
           </div>
         </section>

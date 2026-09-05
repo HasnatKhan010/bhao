@@ -22,7 +22,11 @@
     "error": "Could not reach the Bhao API",
     "insufficientHistory": "Insufficient history",
     "notSurveyed": "Not surveyed",
-    "direction": { "up": "expected to rise", "down": "expected to fall", "flat": "expected to stay flat" },
+    "direction": {
+      "up": "expected to rise",
+      "down": "expected to fall",
+      "flat": "expected to stay flat"
+    },
     "lastActualWeek": "as of {week}",
     "panelWeek": "Panel week"
   },
@@ -31,7 +35,9 @@
   },
   "home": {
     "tagline": "What things cost in Pakistan, weekly — and what they'll cost next week.",
-    "subtitle": "Prices from the Pakistan Bureau of Statistics weekly survey, made tidy, with honest one-week forecasts and a published record of how wrong we've been."
+    "subtitle": "Prices from the Pakistan Bureau of Statistics weekly survey, made tidy, with honest one-week forecasts and a published record of how wrong we've been.",
+    "allCities": "All 17 cities for this item →",
+    "howWrong": "How wrong we've been lately →"
   },
   "scorecard": {
     "title": "Scorecard",

@@ -44,6 +44,19 @@ jobs:
         run: |
           set -o pipefail
           python -m orchestration.weekly 2>&1 | tee weekly_ingest.log
+          # A fresh panel (no restored cache) is too young for a backtest: bootstrap
+          # the archived history first, once, so the model stage has data to train on.
+          python - <<'EOF'
+          from pathlib import Path
+          import pandas as pd
+          p = Path("data/panel/prices_weekly.parquet")
+          weeks = pd.read_parquet(p)["week_ending"].nunique() if p.exists() else 0
+          print(f"panel weeks: {weeks}")
+          if weeks < 20:
+              from orchestration.weekly import backfill_all
+              print("fresh panel - running the one-off Wayback backfill bootstrap")
+              print(backfill_all())
+          EOF
           python -m evaluation.run_pipeline 2>&1 | tee weekly_model.log
 
       - name: Healthcheck (panel_week within 10 days)

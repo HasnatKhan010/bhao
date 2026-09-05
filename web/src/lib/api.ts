@@ -56,6 +56,32 @@ export interface Forecast {
   recent_error: { mase: number | null; mase_rw?: number | null; mae: number | null; n_weeks: number };
 }
 
+export interface ForecastRow {
+  city_code: string;
+  item_code: string;
+  item_en: string | null;
+  item_ur: string | null;
+  city_en: string | null;
+  city_ur: string | null;
+  target_week: string | null;
+  p10: number | null;
+  p50: number | null;
+  p90: number | null;
+  model_version: string | null;
+  made_on: string | null;
+}
+
+export interface PriceRow {
+  week_ending: string;
+  city_code: string;
+  item_code: string;
+  price_min: number | null;
+  price_avg: number | null;
+  price_max: number | null;
+  revision: number;
+  source_url: string;
+}
+
 export interface Mover {
   item_code: string;
   item_en: string;
@@ -122,6 +148,19 @@ export const api = {
       throw new Error(body?.error?.message ?? `HTTP ${res.status}`);
     }
     return res.json();
+  },
+  forecastsBulk: (params: { city_code?: string; item_code?: string }) => {
+    const q = new URLSearchParams();
+    if (params.city_code) q.set("city_code", params.city_code);
+    if (params.item_code) q.set("item_code", params.item_code);
+    return get<ForecastRow[]>(`/api/forecasts?${q.toString()}`);
+  },
+  prices: (params: { city_code?: string; item_code?: string; limit?: number }) => {
+    const q = new URLSearchParams();
+    if (params.city_code) q.set("city_code", params.city_code);
+    if (params.item_code) q.set("item_code", params.item_code);
+    q.set("limit", String(params.limit ?? 200));
+    return get<PriceRow[]>(`/api/prices?${q.toString()}`);
   },
   movers: (limit = 10, direction = "both") =>
     get<Mover[]>(`/api/movers?limit=${limit}&direction=${direction}`),
