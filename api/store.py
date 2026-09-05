@@ -24,8 +24,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 STARTED_AT = time.time()
 
 CACHE_TTL_SECONDS = int(os.getenv("BHAO_CACHE_TTL_SECONDS", "3600"))
-RATE_LIMIT_JSON = int(os.getenv("BHAO_RATE_LIMIT_JSON", "60"))       # req/min/IP
-RATE_LIMIT_CSV = int(os.getenv("BHAO_RATE_LIMIT_CSV", "5"))          # req/min/IP
+RATE_LIMIT_JSON = int(os.getenv("BHAO_RATE_LIMIT_JSON", "60"))  # req/min/IP
+RATE_LIMIT_CSV = int(os.getenv("BHAO_RATE_LIMIT_CSV", "5"))  # req/min/IP
 DATASET_RELEASE_URL = os.getenv(
     "BHAO_DATASET_URL",
     "https://github.com/hasnatkhan010/bhao/releases/latest/download/panel.parquet",

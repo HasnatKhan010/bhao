@@ -17,7 +17,6 @@ import datetime as dt
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from contracts.schemas import as_of
 from evaluation.backtest import make_folds
@@ -29,25 +28,32 @@ def _panel(n_weeks: int = 60) -> pd.DataFrame:
     rows = []
     for i, w in enumerate(weeks):
         for city in ("05", "10"):
-            rows.append({
-                "week_ending": w,
-                "city_code": city,
-                "item_code": "019",
-                "price_avg": 100.0 + i + (5 if city == "10" else 0),
-                "ingested_at": pd.Timestamp(w + dt.timedelta(days=2), tz="UTC"),  # Friday publication
-                "revision": np.int32(0),
-            })
-            # planted restatement: week 30's price restated 3 weeks after publication
-            # (revision 0 keeps the ORIGINAL price; revision 1 carries the restatement)
-            if i == 30:
-                rows.append({
+            rows.append(
+                {
                     "week_ending": w,
                     "city_code": city,
                     "item_code": "019",
-                    "price_avg": 160.0 + (5 if city == "10" else 0),  # restated: +30 over the original
-                    "ingested_at": pd.Timestamp(w + dt.timedelta(days=2 + 21), tz="UTC"),
-                    "revision": np.int32(1),
-                })
+                    "price_avg": 100.0 + i + (5 if city == "10" else 0),
+                    "ingested_at": pd.Timestamp(
+                        w + dt.timedelta(days=2), tz="UTC"
+                    ),  # Friday publication
+                    "revision": np.int32(0),
+                }
+            )
+            # planted restatement: week 30's price restated 3 weeks after publication
+            # (revision 0 keeps the ORIGINAL price; revision 1 carries the restatement)
+            if i == 30:
+                rows.append(
+                    {
+                        "week_ending": w,
+                        "city_code": city,
+                        "item_code": "019",
+                        "price_avg": 160.0
+                        + (5 if city == "10" else 0),  # restated: +30 over the original
+                        "ingested_at": pd.Timestamp(w + dt.timedelta(days=2 + 21), tz="UTC"),
+                        "revision": np.int32(1),
+                    }
+                )
     return pd.DataFrame(rows).astype({"revision": "int32"})
 
 
@@ -57,9 +63,9 @@ class TestFoldDiscipline:
         for fold in make_folds(panel, n_folds=8):
             train = fold.train
             weeks = pd.to_datetime(train["week_ending"]).dt.date
-            assert (weeks <= fold.made_on).all(), (
-                f"fold made_on={fold.made_on} trained on week {weeks.max()}"
-            )
+            assert (
+                weeks <= fold.made_on
+            ).all(), f"fold made_on={fold.made_on} trained on week {weeks.max()}"
 
     def test_no_revision_known_after_made_on(self):
         panel = _panel()
@@ -70,11 +76,15 @@ class TestFoldDiscipline:
             if fold.made_on <= restated_week + dt.timedelta(days=23):
                 # the restatement (ingested +21d after the Friday publication) is
                 # NOT knowable yet — every visible row must be revision 0
-                assert (seen["revision"] == 0).all(), (
-                    f"fold made_on={fold.made_on} saw the restatement early"
-                )
+                assert (
+                    seen["revision"] == 0
+                ).all(), f"fold made_on={fold.made_on} saw the restatement early"
         # and after it lands, as_of picks the restated value
-        late_fold = [f for f in make_folds(panel, n_folds=8) if f.made_on > restated_week + dt.timedelta(days=23)][0]
+        late_fold = [
+            f
+            for f in make_folds(panel, n_folds=8)
+            if f.made_on > restated_week + dt.timedelta(days=23)
+        ][0]
         seen = late_fold.train[late_fold.train["week_ending"] == restated_week]
         assert (seen["revision"] == 1).all()
 

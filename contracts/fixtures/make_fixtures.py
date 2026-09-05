@@ -31,7 +31,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from contracts.item_catalog import ITEM_BY_CODE, ITEMS, SPI_BASKET_CODES, ItemDef
+from contracts.item_catalog import ITEM_BY_CODE, ITEMS, SPI_BASKET_CODES
 
 SEED = 20260824
 N_WEEKS = 156
@@ -122,7 +122,7 @@ def _url(stem: str, fname: str) -> str:
 def load_urdu_labels() -> dict[str, str]:
     here = Path(__file__).parent
     df = pd.read_csv(here / ".." / "item_labels_ur.csv")
-    return dict(zip(df["item_en"], df["item_ur"]))
+    return dict(zip(df["item_en"], df["item_ur"], strict=False))
 
 
 # ---------------------------------------------------------------------------
@@ -199,20 +199,27 @@ def generate_prices(items_df: pd.DataFrame) -> pd.DataFrame:
 
         if it.is_administered and code == ADMIN_STEP_CODE:
             # pathology 6: flat, +18% in one week, flat either side; min=avg=max
-            avg = np.where(t_idx < ADMIN_STEP_WEEK, it.base_price,
-                           round(it.base_price * (1 + ADMIN_STEP_PCT), 2))
+            avg = np.where(
+                t_idx < ADMIN_STEP_WEEK,
+                it.base_price,
+                round(it.base_price * (1 + ADMIN_STEP_PCT), 2),
+            )
             spread = np.zeros(N_WEEKS)
         elif it.is_administered:
             steps = rng.random(N_WEEKS) < 0.03
-            avg = it.base_price * np.exp(np.cumsum(np.where(steps, rng.normal(0.01, 0.005, N_WEEKS), 0.0)))
+            avg = it.base_price * np.exp(
+                np.cumsum(np.where(steps, rng.normal(0.01, 0.005, N_WEEKS), 0.0))
+            )
             spread = np.zeros(N_WEEKS)
         else:
             noise = rng.normal(0.0005, sig_vec)
             season_amp = 0.06 if it.category in ("vegetables", "fruit") else 0.015
             phase = float(rng.uniform(0, 2 * math.pi))
-            logp = (np.log(it.base_price)
-                    + np.cumsum(noise) * (1 if code != VARIANCE_CODE else 1)
-                    + season_amp * np.sin(2 * math.pi * t_idx / 52 + phase))
+            logp = (
+                np.log(it.base_price)
+                + np.cumsum(noise) * (1 if code != VARIANCE_CODE else 1)
+                + season_amp * np.sin(2 * math.pi * t_idx / 52 + phase)
+            )
             avg = np.exp(logp)
             spread = rng.uniform(0.015, 0.09, N_WEEKS)
 
@@ -234,8 +241,10 @@ def generate_prices(items_df: pd.DataFrame) -> pd.DataFrame:
             rows = {
                 "week_ending": WEEKS[start_idx:],
                 "city_code": [city_code] * (N_WEEKS - start_idx),
-                "city_en": [next(c[1] for c in CITIES if c[0] == city_code)] * (N_WEEKS - start_idx),
-                "city_ur": [next(c[2] for c in CITIES if c[0] == city_code)] * (N_WEEKS - start_idx),
+                "city_en": [next(c[1] for c in CITIES if c[0] == city_code)]
+                * (N_WEEKS - start_idx),
+                "city_ur": [next(c[2] for c in CITIES if c[0] == city_code)]
+                * (N_WEEKS - start_idx),
                 "item_code": [code] * (N_WEEKS - start_idx),
                 "item_en": [it.item_en] * (N_WEEKS - start_idx),
                 "item_ur": [item_ur] * (N_WEEKS - start_idx),
@@ -270,17 +279,25 @@ def generate_prices(items_df: pd.DataFrame) -> pd.DataFrame:
     panel.loc[partial, ["price_min", "price_max"]] = np.nan
 
     # pathology 3: city 13 absent for six consecutive weeks — drop the rows entirely
-    drop_mask = (panel["city_code"] == MISSING_CITY) & (panel["week_ending"].isin(MISSING_CITY_WEEKS))
+    drop_mask = (panel["city_code"] == MISSING_CITY) & (
+        panel["week_ending"].isin(MISSING_CITY_WEEKS)
+    )
     panel = panel.loc[~drop_mask].reset_index(drop=True)
 
     # pathology 5: one key restated — append revision 1, 3% above revision 0
     wk, city, item = REVISION_KEY
-    orig = panel[(panel["week_ending"] == wk) & (panel["city_code"] == city)
-                 & (panel["item_code"] == item) & (panel["revision"] == 0)].iloc[0]
+    orig = panel[
+        (panel["week_ending"] == wk)
+        & (panel["city_code"] == city)
+        & (panel["item_code"] == item)
+        & (panel["revision"] == 0)
+    ].iloc[0]
     rev1 = orig.to_dict()
     rev1["revision"] = np.int32(1)
     for col in ("price_min", "price_avg", "price_max", "price_per_unit"):
-        rev1[col] = round(float(orig[col]) * (1 + REVISION_DELTA), 2) if pd.notna(orig[col]) else np.nan
+        rev1[col] = (
+            round(float(orig[col]) * (1 + REVISION_DELTA), 2) if pd.notna(orig[col]) else np.nan
+        )
     rev1["ingested_at"] = _ingest_ts(wk, revision=1)
     panel = pd.concat([panel, pd.DataFrame([rev1])], ignore_index=True)
 
@@ -288,7 +305,9 @@ def generate_prices(items_df: pd.DataFrame) -> pd.DataFrame:
     panel[float_cols] = panel[float_cols].astype("float64")
     panel["revision"] = panel["revision"].astype("int32")
     panel["ingested_at"] = panel["ingested_at"].astype("datetime64[us, UTC]")
-    panel = panel.sort_values(["week_ending", "city_code", "item_code", "revision"]).reset_index(drop=True)
+    panel = panel.sort_values(["week_ending", "city_code", "item_code", "revision"]).reset_index(
+        drop=True
+    )
     return panel
 
 
@@ -298,14 +317,14 @@ def generate_prices(items_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def generate_national(panel: pd.DataFrame, items_df: pd.DataFrame) -> pd.DataFrame:
-    weights = dict(zip(items_df["item_code"], items_df["spi_weight"]))
+    weights = dict(zip(items_df["item_code"], items_df["spi_weight"], strict=False))
     rows = []
 
     national_by_week: dict[dt.date, dict[str, float]] = {}
     for week in WEEKS:
         wk = panel[(panel["week_ending"] == week) & (panel["revision"] == 0)]
         vals: dict[str, float] = {}
-        for code, w in weights.items():
+        for code, _w in weights.items():
             sub = wk[wk["item_code"] == code]
             avg = sub["price_avg"]
             if avg.notna().any():
@@ -318,38 +337,48 @@ def generate_national(panel: pd.DataFrame, items_df: pd.DataFrame) -> pd.DataFra
     idx = np.round(idx, 2)
 
     for i, week in enumerate(WEEKS):
-        rows.append({
-            "week_ending": week,
-            "item_code": "000",
-            "price_this_week": float(idx[i]),
-            "price_prev_week": float(idx[i - 1]) if i > 0 else np.nan,
-            "price_same_week_last_year": float(idx[i - 52]) if i >= 52 else np.nan,
-            "pct_change_wow": round((idx[i] / idx[i - 1] - 1) * 100, 2) if i > 0 else np.nan,
-            "pct_change_yoy": round((idx[i] / idx[i - 52] - 1) * 100, 2) if i >= 52 else np.nan,
-            "spi_weight_combined": 100.0,
-            "spi_weight_lowest_quintile": 100.0,
-            "source_url": _url("spi", f"SPI-Report_{week.strftime('%d.%m.%Y')}.xlsx"),
-            "revision": np.int32(0),
-            "ingested_at": _ingest_ts(week),
-        })
+        rows.append(
+            {
+                "week_ending": week,
+                "item_code": "000",
+                "price_this_week": float(idx[i]),
+                "price_prev_week": float(idx[i - 1]) if i > 0 else np.nan,
+                "price_same_week_last_year": float(idx[i - 52]) if i >= 52 else np.nan,
+                "pct_change_wow": round((idx[i] / idx[i - 1] - 1) * 100, 2) if i > 0 else np.nan,
+                "pct_change_yoy": round((idx[i] / idx[i - 52] - 1) * 100, 2) if i >= 52 else np.nan,
+                "spi_weight_combined": 100.0,
+                "spi_weight_lowest_quintile": 100.0,
+                "source_url": _url("spi", f"SPI-Report_{week.strftime('%d.%m.%Y')}.xlsx"),
+                "revision": np.int32(0),
+                "ingested_at": _ingest_ts(week),
+            }
+        )
         for code, price in national_by_week[week].items():
             prev = national_by_week[WEEKS[i - 1]].get(code, np.nan) if i > 0 else np.nan
             yoy = national_by_week[WEEKS[i - 52]].get(code, np.nan) if i >= 52 else np.nan
             w = weights[code] or 0.0
-            rows.append({
-                "week_ending": week,
-                "item_code": code,
-                "price_this_week": price,
-                "price_prev_week": prev,
-                "price_same_week_last_year": yoy,
-                "pct_change_wow": round((price / prev - 1) * 100, 2) if prev and not math.isnan(prev) else np.nan,
-                "pct_change_yoy": round((price / yoy - 1) * 100, 2) if yoy and not math.isnan(yoy) else np.nan,
-                "spi_weight_combined": w,
-                "spi_weight_lowest_quintile": round(w * 1.18, 2),
-                "source_url": _url("spi", f"SPI-Report_{week.strftime('%d.%m.%Y')}.xlsx"),
-                "revision": np.int32(0),
-                "ingested_at": _ingest_ts(week),
-            })
+            rows.append(
+                {
+                    "week_ending": week,
+                    "item_code": code,
+                    "price_this_week": price,
+                    "price_prev_week": prev,
+                    "price_same_week_last_year": yoy,
+                    "pct_change_wow": (
+                        round((price / prev - 1) * 100, 2)
+                        if prev and not math.isnan(prev)
+                        else np.nan
+                    ),
+                    "pct_change_yoy": (
+                        round((price / yoy - 1) * 100, 2) if yoy and not math.isnan(yoy) else np.nan
+                    ),
+                    "spi_weight_combined": w,
+                    "spi_weight_lowest_quintile": round(w * 1.18, 2),
+                    "source_url": _url("spi", f"SPI-Report_{week.strftime('%d.%m.%Y')}.xlsx"),
+                    "revision": np.int32(0),
+                    "ingested_at": _ingest_ts(week),
+                }
+            )
 
     df = pd.DataFrame(rows)
     df["revision"] = df["revision"].astype("int32")
@@ -391,28 +420,33 @@ def generate_wfp() -> pd.DataFrame:
         for item_wfp, code, unit, seed_price in WFP_ITEMS:
             n = len(months)
             m = np.arange(n)
-            logp = (math.log(seed_price) + 0.0062 * m
-                    + 0.05 * np.sin(2 * math.pi * (m % 12) / 12)
-                    + rng.normal(0, 0.02, n))
+            logp = (
+                math.log(seed_price)
+                + 0.0062 * m
+                + 0.05 * np.sin(2 * math.pi * (m % 12) / 12)
+                + rng.normal(0, 0.02, n)
+            )
             price = np.round(np.exp(logp), 2)
             usd = np.round(price / (60 + 0.9 * m / 12), 4)  # plausible PKR/USD drift
             for j, month in enumerate(months):
-                rows.append({
-                    "month": month,
-                    "market_en": market,
-                    "admin1": admin1,
-                    "admin2": admin2,
-                    "item_wfp": item_wfp,
-                    "item_code": code,
-                    "unit_wfp": unit,
-                    "price": float(price[j]),
-                    "usd_price": float(usd[j]),
-                    "price_flag": "survey",
-                    "price_type": "Retail",
-                    "lat": lat,
-                    "lon": lon,
-                    "source_url": _url("wfp", "wfp_food_prices_pak.csv"),
-                })
+                rows.append(
+                    {
+                        "month": month,
+                        "market_en": market,
+                        "admin1": admin1,
+                        "admin2": admin2,
+                        "item_wfp": item_wfp,
+                        "item_code": code,
+                        "unit_wfp": unit,
+                        "price": float(price[j]),
+                        "usd_price": float(usd[j]),
+                        "price_flag": "survey",
+                        "price_type": "Retail",
+                        "lat": lat,
+                        "lon": lon,
+                        "source_url": _url("wfp", "wfp_food_prices_pak.csv"),
+                    }
+                )
     return pd.DataFrame(rows)
 
 
@@ -431,7 +465,6 @@ def _features_hash(city: str, item: str, made_on: dt.date) -> str:
 
 
 def generate_forecasts(panel: pd.DataFrame) -> pd.DataFrame:
-    rng = np.random.default_rng(SEED + 5)
     made_on = WEEKS[-2]
     target = WEEKS[-1]
     hist = panel[(panel["revision"] == 0) & (panel["week_ending"] <= made_on)]
@@ -448,12 +481,21 @@ def generate_forecasts(panel: pd.DataFrame) -> pd.DataFrame:
         e = max(1.2816 * vol, 0.005)
         snaive_val = sub.loc[sub["week_ending"] == w52, "price_avg"]
         sn = float(snaive_val.iloc[0]) if len(snaive_val) else np.nan
-        drift_est = 0.3 * ((last / sub["price_avg"].iloc[-5]) ** 1 - 1) if len(sub) >= 5 and sub["price_avg"].iloc[-5] else 0.0
+        drift_est = (
+            0.3 * ((last / sub["price_avg"].iloc[-5]) ** 1 - 1)
+            if len(sub) >= 5 and sub["price_avg"].iloc[-5]
+            else 0.0
+        )
         gbm_p50 = round(last * (1 + drift_est), 2)
 
         for model_name, version, p50, is_champion in (
             ("global_gbm", GBM_VERSION, gbm_p50, True),
-            ("seasonal_naive", SNAIVE_VERSION, (round(sn, 2) if not math.isnan(sn) else np.nan), False),
+            (
+                "seasonal_naive",
+                SNAIVE_VERSION,
+                (round(sn, 2) if not math.isnan(sn) else np.nan),
+                False,
+            ),
             ("random_walk", RW_VERSION, round(float(last), 2), False),
         ):
             if pd.isna(p50):
@@ -461,37 +503,54 @@ def generate_forecasts(panel: pd.DataFrame) -> pd.DataFrame:
             else:
                 p10 = round(p50 * (1 - e), 2)
                 p90 = round(p50 * (1 + e), 2)
-            rows.append({
-                "run_id": FIXTURE_RUN_TS,
-                "model_version": version,
-                "model_name": model_name,
-                "made_on": made_on,
-                "target_week": target,
-                "horizon": np.int32(1),
-                "city_code": city,
-                "item_code": item,
-                "p10": p10,
-                "p50": p50,
-                "p90": p90,
-                "is_champion": is_champion,
-                "features_hash": _features_hash(city, item, made_on),
-                "created_at": pd.Timestamp(REVISION_INGEST_TS),
-            })
+            rows.append(
+                {
+                    "run_id": FIXTURE_RUN_TS,
+                    "model_version": version,
+                    "model_name": model_name,
+                    "made_on": made_on,
+                    "target_week": target,
+                    "horizon": np.int32(1),
+                    "city_code": city,
+                    "item_code": item,
+                    "p10": p10,
+                    "p50": p50,
+                    "p90": p90,
+                    "is_champion": is_champion,
+                    "features_hash": _features_hash(city, item, made_on),
+                    "created_at": pd.Timestamp(REVISION_INGEST_TS),
+                }
+            )
 
     df = pd.DataFrame(rows)
-    df = df.sample(frac=1.0, random_state=SEED).reset_index(drop=True)  # shuffled, still deterministic
+    df = df.sample(frac=1.0, random_state=SEED).reset_index(
+        drop=True
+    )  # shuffled, still deterministic
     df["horizon"] = df["horizon"].astype("int32")
     df["created_at"] = df["created_at"].astype("datetime64[us, UTC]")
     return df
 
 
-def _metrics_block(run_id, evaluated_on, target, model_name, model_version, scope,
-                   city_code, item_code, n_obs, errs, actuals, interval_hits, is_backtest):
+def _metrics_block(
+    run_id,
+    evaluated_on,
+    target,
+    model_name,
+    model_version,
+    scope,
+    city_code,
+    item_code,
+    n_obs,
+    errs,
+    actuals,
+    interval_hits,
+    is_backtest,
+):
     """errs = actual - p50 (signed); actuals = the actual prices; interval_hits = bool array."""
     if len(errs):
         ae = np.abs(errs)
         mae = float(ae.mean())
-        rmse = float(np.sqrt((errs ** 2).mean()))
+        rmse = float(np.sqrt((errs**2).mean()))
         smape = float(np.mean(2 * ae / np.maximum(np.abs(actuals) + np.abs(actuals - errs), 1e-9)))
         pin10 = float(np.mean(np.where(errs >= 0, 0.1 * errs, 0.9 * -errs)))
         pin50 = float(np.mean(0.5 * ae))
@@ -500,7 +559,6 @@ def _metrics_block(run_id, evaluated_on, target, model_name, model_version, scop
         cov = float(np.mean(interval_hits)) if len(interval_hits) else np.nan
     else:
         mae = rmse = smape = pin10 = pin50 = pin90 = bias = cov = np.nan
-        mase = np.nan
     return {
         "run_id": run_id,
         "evaluated_on": evaluated_on,
@@ -533,47 +591,147 @@ def generate_metrics(panel: pd.DataFrame, forecasts: pd.DataFrame) -> pd.DataFra
     rows = []
     for model_name, msub in forecasts.groupby("model_name"):
         version = msub["model_version"].iloc[0]
-        merged = msub.merge(actual.rename("actual"), left_on=["city_code", "item_code"],
-                            right_index=True, how="inner")
+        merged = msub.merge(
+            actual.rename("actual"),
+            left_on=["city_code", "item_code"],
+            right_index=True,
+            how="inner",
+        )
         merged = merged[merged["actual"].notna() & merged["p50"].notna()]
         errs = (merged["actual"] - merged["p50"]).to_numpy()
         acts = merged["actual"].to_numpy()
-        hits = ((merged["actual"] >= merged["p10"]) & (merged["actual"] <= merged["p90"])).to_numpy()
-        rows.append(_metrics_block(FIXTURE_RUN_TS, evaluated_on, target, model_name, version,
-                                   "overall", None, None, len(errs), errs, acts, hits, False))
+        hits = (
+            (merged["actual"] >= merged["p10"]) & (merged["actual"] <= merged["p90"])
+        ).to_numpy()
+        rows.append(
+            _metrics_block(
+                FIXTURE_RUN_TS,
+                evaluated_on,
+                target,
+                model_name,
+                version,
+                "overall",
+                None,
+                None,
+                len(errs),
+                errs,
+                acts,
+                hits,
+                False,
+            )
+        )
         if model_name == "global_gbm":
             cats = {it.item_code: it.category for it in ITEMS}
             merged["category"] = merged["item_code"].map(cats)
-            for cat, csub in merged.groupby("category"):
+            for _cat, csub in merged.groupby("category"):
                 cerrs = (csub["actual"] - csub["p50"]).to_numpy()
                 cacts = csub["actual"].to_numpy()
-                chits = ((csub["actual"] >= csub["p10"]) & (csub["actual"] <= csub["p90"])).to_numpy()
-                rows.append(_metrics_block(FIXTURE_RUN_TS, evaluated_on, target, model_name, version,
-                                           "category", None, None, len(cerrs), cerrs, cacts, chits, False))
+                chits = (
+                    (csub["actual"] >= csub["p10"]) & (csub["actual"] <= csub["p90"])
+                ).to_numpy()
+                rows.append(
+                    _metrics_block(
+                        FIXTURE_RUN_TS,
+                        evaluated_on,
+                        target,
+                        model_name,
+                        version,
+                        "category",
+                        None,
+                        None,
+                        len(cerrs),
+                        cerrs,
+                        cacts,
+                        chits,
+                        False,
+                    )
+                )
             for code in ("019", "001", "047", "020"):  # onions, flour, petrol, tomatoes
                 isub = merged[merged["item_code"] == code]
                 if len(isub):
                     ierrs = (isub["actual"] - isub["p50"]).to_numpy()
                     iacts = isub["actual"].to_numpy()
-                    ihits = ((isub["actual"] >= isub["p10"]) & (isub["actual"] <= isub["p90"])).to_numpy()
-                    rows.append(_metrics_block(FIXTURE_RUN_TS, evaluated_on, target, model_name, version,
-                                               "item", None, code, len(ierrs), ierrs, iacts, ihits, False))
+                    ihits = (
+                        (isub["actual"] >= isub["p10"]) & (isub["actual"] <= isub["p90"])
+                    ).to_numpy()
+                    rows.append(
+                        _metrics_block(
+                            FIXTURE_RUN_TS,
+                            evaluated_on,
+                            target,
+                            model_name,
+                            version,
+                            "item",
+                            None,
+                            code,
+                            len(ierrs),
+                            ierrs,
+                            iacts,
+                            ihits,
+                            False,
+                        )
+                    )
             admin_codes = {it.item_code for it in ITEMS if it.is_administered}
             asub = merged[merged["item_code"].isin(admin_codes)]
             aerrs = (asub["actual"] - asub["p50"]).to_numpy()
             aacts = asub["actual"].to_numpy()
             ahits = ((asub["actual"] >= asub["p10"]) & (asub["actual"] <= asub["p90"])).to_numpy()
-            rows.append(_metrics_block(FIXTURE_RUN_TS, evaluated_on, target, model_name, version,
-                                       "administered", None, None, len(aerrs), aerrs, aacts, ahits, False))
+            rows.append(
+                _metrics_block(
+                    FIXTURE_RUN_TS,
+                    evaluated_on,
+                    target,
+                    model_name,
+                    version,
+                    "administered",
+                    None,
+                    None,
+                    len(aerrs),
+                    aerrs,
+                    aacts,
+                    ahits,
+                    False,
+                )
+            )
             lsub = merged[merged["city_code"] == "05"]
             lerrs = (lsub["actual"] - lsub["p50"]).to_numpy()
             lacts = lsub["actual"].to_numpy()
             lhits = ((lsub["actual"] >= lsub["p10"]) & (lsub["actual"] <= lsub["p90"])).to_numpy()
-            rows.append(_metrics_block(FIXTURE_RUN_TS, evaluated_on, target, model_name, version,
-                                       "city", "05", None, len(lerrs), lerrs, lacts, lhits, False))
+            rows.append(
+                _metrics_block(
+                    FIXTURE_RUN_TS,
+                    evaluated_on,
+                    target,
+                    model_name,
+                    version,
+                    "city",
+                    "05",
+                    None,
+                    len(lerrs),
+                    lerrs,
+                    lacts,
+                    lhits,
+                    False,
+                )
+            )
         # a backtest row per model
-        rows.append(_metrics_block(FIXTURE_RUN_TS, evaluated_on, target, model_name, version,
-                                   "overall", None, None, len(errs), errs * 1.02, acts, hits, True))
+        rows.append(
+            _metrics_block(
+                FIXTURE_RUN_TS,
+                evaluated_on,
+                target,
+                model_name,
+                version,
+                "overall",
+                None,
+                None,
+                len(errs),
+                errs * 1.02,
+                acts,
+                hits,
+                True,
+            )
+        )
     df = pd.DataFrame(rows)
     df["n_obs"] = df["n_obs"].astype("int32")
     return df
@@ -583,48 +741,102 @@ def generate_drift() -> pd.DataFrame:
     checked_on = dt.date(2026, 8, 24)
     rows = [
         {
-            "run_id": FIXTURE_RUN_TS, "checked_on": checked_on, "channel": "residual",
-            "subject": "overall", "test": "rolling_mase", "statistic": 1.38, "threshold": 1.14,
-            "p_value": None, "fired": True, "severity": "critical",
-            "window_start": dt.date(2026, 6, 12), "window_end": dt.date(2026, 8, 20),
-            "note": ("Rolling MASE 1.38 vs backtest 0.91 since 2026-06-12; concentrated in "
-                     "vegetables (onions, tomatoes), consistent with a supply shock."),
+            "run_id": FIXTURE_RUN_TS,
+            "checked_on": checked_on,
+            "channel": "residual",
+            "subject": "overall",
+            "test": "rolling_mase",
+            "statistic": 1.38,
+            "threshold": 1.14,
+            "p_value": None,
+            "fired": True,
+            "severity": "critical",
+            "window_start": dt.date(2026, 6, 12),
+            "window_end": dt.date(2026, 8, 20),
+            "note": (
+                "Rolling MASE 1.38 vs backtest 0.91 since 2026-06-12; concentrated in "
+                "vegetables (onions, tomatoes), consistent with a supply shock."
+            ),
         },
         {
-            "run_id": FIXTURE_RUN_TS, "checked_on": checked_on, "channel": "feature",
-            "subject": "lag_1_log_price", "test": "psi", "statistic": 0.18, "threshold": 0.10,
-            "p_value": None, "fired": True, "severity": "warn",
-            "window_start": dt.date(2026, 7, 23), "window_end": dt.date(2026, 8, 20),
-            "note": ("Lag-1 log-price distribution shifted (PSI 0.18); driven by the onion "
-                     "supply shock, not a pipeline defect."),
+            "run_id": FIXTURE_RUN_TS,
+            "checked_on": checked_on,
+            "channel": "feature",
+            "subject": "lag_1_log_price",
+            "test": "psi",
+            "statistic": 0.18,
+            "threshold": 0.10,
+            "p_value": None,
+            "fired": True,
+            "severity": "warn",
+            "window_start": dt.date(2026, 7, 23),
+            "window_end": dt.date(2026, 8, 20),
+            "note": (
+                "Lag-1 log-price distribution shifted (PSI 0.18); driven by the onion "
+                "supply shock, not a pipeline defect."
+            ),
         },
         {
-            "run_id": FIXTURE_RUN_TS, "checked_on": checked_on, "channel": "residual",
-            "subject": "11:019", "test": "page_hinkley", "statistic": 62.0, "threshold": 50.0,
-            "p_value": None, "fired": True, "severity": "warn",
-            "window_start": dt.date(2026, 7, 1), "window_end": dt.date(2026, 8, 20),
-            "note": ("Page–Hinkley change point on Hyderabad onion residuals in the week "
-                     "ending 2026-07-16; mean error turned sharply negative."),
+            "run_id": FIXTURE_RUN_TS,
+            "checked_on": checked_on,
+            "channel": "residual",
+            "subject": "11:019",
+            "test": "page_hinkley",
+            "statistic": 62.0,
+            "threshold": 50.0,
+            "p_value": None,
+            "fired": True,
+            "severity": "warn",
+            "window_start": dt.date(2026, 7, 1),
+            "window_end": dt.date(2026, 8, 20),
+            "note": (
+                "Page–Hinkley change point on Hyderabad onion residuals in the week "
+                "ending 2026-07-16; mean error turned sharply negative."
+            ),
         },
         {
-            "run_id": FIXTURE_RUN_TS, "checked_on": checked_on, "channel": "feature",
-            "subject": "rolling_mean_4", "test": "psi", "statistic": 0.06, "threshold": 0.10,
-            "p_value": None, "fired": False, "severity": "info",
-            "window_start": dt.date(2026, 7, 23), "window_end": dt.date(2026, 8, 20),
+            "run_id": FIXTURE_RUN_TS,
+            "checked_on": checked_on,
+            "channel": "feature",
+            "subject": "rolling_mean_4",
+            "test": "psi",
+            "statistic": 0.06,
+            "threshold": 0.10,
+            "p_value": None,
+            "fired": False,
+            "severity": "info",
+            "window_start": dt.date(2026, 7, 23),
+            "window_end": dt.date(2026, 8, 20),
             "note": "No actionable shift in the 4-week rolling mean feature.",
         },
         {
-            "run_id": FIXTURE_RUN_TS, "checked_on": checked_on, "channel": "coverage",
-            "subject": "overall", "test": "coverage_gap", "statistic": 0.05, "threshold": 0.12,
-            "p_value": None, "fired": False, "severity": "info",
-            "window_start": dt.date(2026, 6, 5), "window_end": dt.date(2026, 8, 20),
+            "run_id": FIXTURE_RUN_TS,
+            "checked_on": checked_on,
+            "channel": "coverage",
+            "subject": "overall",
+            "test": "coverage_gap",
+            "statistic": 0.05,
+            "threshold": 0.12,
+            "p_value": None,
+            "fired": False,
+            "severity": "info",
+            "window_start": dt.date(2026, 6, 5),
+            "window_end": dt.date(2026, 8, 20),
             "note": "80% interval coverage within tolerance over the last 12 weeks.",
         },
         {
-            "run_id": FIXTURE_RUN_TS, "checked_on": checked_on, "channel": "feature",
-            "subject": "spread_ratio", "test": "ks", "statistic": 0.021, "threshold": 0.05,
-            "p_value": 0.31, "fired": False, "severity": "info",
-            "window_start": dt.date(2026, 7, 23), "window_end": dt.date(2026, 8, 20),
+            "run_id": FIXTURE_RUN_TS,
+            "checked_on": checked_on,
+            "channel": "feature",
+            "subject": "spread_ratio",
+            "test": "ks",
+            "statistic": 0.021,
+            "threshold": 0.05,
+            "p_value": 0.31,
+            "fired": False,
+            "severity": "info",
+            "window_start": dt.date(2026, 7, 23),
+            "window_end": dt.date(2026, 8, 20),
             "note": "No KS-detectable change in the min/max spread feature.",
         },
     ]
@@ -657,8 +869,10 @@ def generate_registry() -> dict:
                 "artefact_path": "contracts/fixtures/registry_artefacts/gbm-v1/",
                 "artefact_sha256": hashlib.sha256(b"bhao-fixture-gbm-v1").hexdigest(),
                 "promoted_at": "2026-08-24T06:00:00Z",
-                "promoted_because": ("First champion: backtest MASE 0.91 vs seasonal-naive 1.00 "
-                                     "over 12 rolling-origin folds (fixture data)."),
+                "promoted_because": (
+                    "First champion: backtest MASE 0.91 vs seasonal-naive 1.00 "
+                    "over 12 rolling-origin folds (fixture data)."
+                ),
                 "retired_at": None,
                 "status": "champion",
             }
@@ -669,8 +883,10 @@ def generate_registry() -> dict:
                 "from": "seasonal_naive",
                 "to": GBM_VERSION,
                 "decision": "promote",
-                "reason": ("Initial promotion: the pooled GBM beat seasonal-naive by 9% MASE on "
-                           "the fixture backtest, clearing the 3% gate."),
+                "reason": (
+                    "Initial promotion: the pooled GBM beat seasonal-naive by 9% MASE on "
+                    "the fixture backtest, clearing the 3% gate."
+                ),
                 "trigger": "initial training",
             }
         ],

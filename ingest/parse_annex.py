@@ -71,8 +71,7 @@ class ParsedAnnex:
 
 def _iter_cells(ws):
     for row in ws.iter_rows():
-        for cell in row:
-            yield cell
+        yield from row
 
 
 def _find_city_cells(ws) -> list[CityCell]:
@@ -82,7 +81,9 @@ def _find_city_cells(ws) -> list[CityCell]:
         if isinstance(v, str):
             m = CITY_HEADER_RE.match(v.strip())
             if m:
-                found.append(CityCell(m.group("code"), m.group("name").strip(), cell.row, cell.column))
+                found.append(
+                    CityCell(m.group("code"), m.group("name").strip(), cell.row, cell.column)
+                )
     # merged city headers repeat the same code across blocks? No — codes are unique.
     return found
 
@@ -109,13 +110,15 @@ def parse_annex(
         out = ParsedAnnex(sheet=sheet)
         out.cities = _find_city_cells(ws)
         n_cities = len(out.city_codes)
-        assert city_band[0] <= n_cities <= city_band[1], f"found {n_cities} city headers, expected {city_band}"
+        assert (
+            city_band[0] <= n_cities <= city_band[1]
+        ), f"found {n_cities} city headers, expected {city_band}"
 
         # group cities by block (their header row)
         blocks: dict[int, list[CityCell]] = {}
         for c in out.cities:
             blocks.setdefault(c.row, []).append(c)
-        for blk_row, cities in blocks.items():
+        for _blk_row, cities in blocks.items():
             cities.sort(key=lambda c: c.col)
 
         item_srs: dict[int, tuple[int, str, str]] = {}
@@ -164,21 +167,28 @@ def parse_annex(
                     pmin = pavg = pmax = None
                 # `-` means not surveyed → all three None; row kept
                 if pmin is None and pavg is None and pmax is None:
-                    out.rows.append(AnnexRow(sr_i, name_v.strip(), unit_v.strip(), city.code, None, None, None))
+                    out.rows.append(
+                        AnnexRow(sr_i, name_v.strip(), unit_v.strip(), city.code, None, None, None)
+                    )
                     continue
-                assert (
-                    pavg is not None
-                ), f"avg missing while min/max present at sheet row {r}, city {city.code}, item {name_v!r}"
+                assert pavg is not None, (
+                    f"avg missing while min/max present at sheet row {r}, "
+                    f"city {city.code}, item {name_v!r}"
+                )
                 # min <= avg <= max where all present: violations are dropped, loudly
                 if (pmin is not None and pmin > pavg) or (pmax is not None and pmax < pavg):
                     raise AssertionError(
-                        f"min<=avg<=max violated at sheet row {r}, city {city.code}, item {name_v!r}: "
-                        f"{pmin}, {pavg}, {pmax}"
+                        f"min<=avg<=max violated at sheet row {r}, city {city.code}, "
+                        f"item {name_v!r}: {pmin}, {pavg}, {pmax}"
                     )
-                out.rows.append(AnnexRow(sr_i, name_v.strip(), unit_v.strip(), city.code, pmin, pavg, pmax))
+                out.rows.append(
+                    AnnexRow(sr_i, name_v.strip(), unit_v.strip(), city.code, pmin, pavg, pmax)
+                )
 
         n_items = len(item_srs)
-        assert item_band[0] <= n_items <= item_band[1], f"found {n_items} item rows, expected {item_band}"
+        assert (
+            item_band[0] <= n_items <= item_band[1]
+        ), f"found {n_items} item rows, expected {item_band}"
         assert out.week_ending is not None, "no 'PRICES ON DD-MM-YYYY' banner found in annex"
         return out
     finally:

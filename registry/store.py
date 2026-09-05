@@ -5,7 +5,6 @@ The pointer is plain JSON so the API never needs MLflow (03-CONTRACTS.md)."""
 from __future__ import annotations
 
 import hashlib
-import json
 import shutil
 from pathlib import Path
 

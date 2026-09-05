@@ -19,10 +19,9 @@ from __future__ import annotations
 import datetime as dt
 import re
 from collections import Counter
-from pathlib import Path
 
 from ingest import config
-from ingest.discover import all_known_weeks, find_report, download_report, latest_week
+from ingest.discover import all_known_weeks, download_report, find_report, latest_week
 from ingest.fetch import cdx_query
 
 
@@ -34,7 +33,9 @@ def _last_completed_week(today: dt.date) -> dt.date:
 
 def _grid(ws, max_row: int, max_col: int) -> list[list]:
     rows = []
-    for r, row in enumerate(ws.iter_rows(min_row=1, max_row=max_row, max_col=max_col, values_only=True), 1):
+    for r, row in enumerate(
+        ws.iter_rows(min_row=1, max_row=max_row, max_col=max_col, values_only=True), 1
+    ):
         rows.append(row)
         if r >= max_row:
             break
@@ -61,18 +62,24 @@ def _item_rows(ws, name_col: str = "A") -> list[tuple[int, str, str]]:
         name = row[0].value if len(row) else None
         unit = row[1].value if len(row) > 1 else None
         if isinstance(name, str) and name.strip() and not re.search(r"\(\d{2}\)$", name.strip()):
-            out.append((row[0].row, name.strip(), str(unit).strip() if isinstance(unit, str) else ""))
+            out.append(
+                (row[0].row, name.strip(), str(unit).strip() if isinstance(unit, str) else "")
+            )
     return out
 
 
 def main() -> None:
     lines: list[str] = []
-    say = lambda s="": (lines.append(s), print(s))
+
+    def say(s: str = "") -> None:
+        lines.append(s)
+        print(s)
 
     import openpyxl
 
     session = None
     import requests
+
     session = requests.Session()
     session.headers["User-Agent"] = config.USER_AGENT
 
@@ -155,7 +162,8 @@ def main() -> None:
                 say(f"- items now: {len(items_now)}, a year ago: {len(items_then)}")
                 say(f"- only in now: {sorted(only_now)[:10]}")
                 say(f"- only in then: {sorted(only_then)[:10]}")
-            wb1.close(); wb2.close()
+            wb1.close()
+            wb2.close()
     say()
 
     # ---------------- item 7: the CDX ceiling ----------------

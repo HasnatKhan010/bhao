@@ -11,7 +11,6 @@ import datetime as dt
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from drift import detect as D
 from drift import thresholds as T
@@ -59,11 +58,13 @@ class TestPageHinkley:
 
 class TestRollingMase:
     def test_requires_two_consecutive_bad_weeks(self):
-        fc = pd.DataFrame({
-            "target_week": pd.date_range("2026-01-01", periods=10, freq="7D"),
-            "model_name": ["global_gbm"] * 10,
-            "mase": [0.9] * 8 + [1.5, 1.5],  # two bad weeks at the end
-        })
+        fc = pd.DataFrame(
+            {
+                "target_week": pd.date_range("2026-01-01", periods=10, freq="7D"),
+                "model_name": ["global_gbm"] * 10,
+                "mase": [0.9] * 8 + [1.5, 1.5],  # two bad weeks at the end
+            }
+        )
         rm, n = D.rolling_mase(fc, 0.8)
         assert n == T.ROLLING_MASE_WINDOW  # an 8-week rolling window
         assert rm > 0.8 * T.ROLLING_MASE_MULT  # the 2-week rule fired
@@ -76,7 +77,7 @@ class TestDetectorOnFixtureRegimeShift:
 
     def test_psi_fires_on_shifted_item(self):
         series = _shifted_series()
-        ref = series[40:100]   # before the shift
+        ref = series[40:100]  # before the shift
         cur = series[100:140]  # after the shift
         stat = D.psi(ref, cur)
         assert stat > 0.25, f"PSI {stat:.3f} should be critical (>0.25)"
@@ -116,17 +117,25 @@ class TestFeatureDriftRows:
     def test_only_top_features_tested(self):
         ref = pd.DataFrame({f"f{i}": np.random.default_rng(i).normal(0, 1, 300) for i in range(50)})
         cur = ref.copy()
-        rows = D.check_feature_drift(ref, cur, [f"f{i}" for i in range(50)], "r", dt.date(2026, 9, 1))
+        rows = D.check_feature_drift(
+            ref, cur, [f"f{i}" for i in range(50)], "r", dt.date(2026, 9, 1)
+        )
         subjects = {r["subject"] for r in rows}
         assert len(subjects) <= 20, "PSI on 200 features gives 200 alerts and no information"
 
 
 class TestPromotionGate:
     def _model(self, mase=0.90, cov=0.80, folds=12, cats=None, win=0.70):
-        return {"version": "x", "backtest": {
-            "mase": mase, "coverage_80": cov, "folds": folds,
-            "categories": cats or {"vegetables": 1.1, "grains": 0.8}, "win_pct": win,
-        }}
+        return {
+            "version": "x",
+            "backtest": {
+                "mase": mase,
+                "coverage_80": cov,
+                "folds": folds,
+                "categories": cats or {"vegetables": 1.1, "grains": 0.8},
+                "win_pct": win,
+            },
+        }
 
     def test_promotes_when_all_five_hold(self):
         champ = self._model(mase=0.95)
@@ -144,8 +153,9 @@ class TestPromotionGate:
     def test_keeps_when_a_category_regresses(self):
         champ = self._model(mase=0.95, cats={"vegetables": 1.00, "grains": 0.80})
         chall = self._model(mase=0.85, cats={"vegetables": 1.25, "grains": 0.60})
-        decision, reasons = P.evaluate_promotion(chall, champ,
-                                                 {"vegetables": 1.25, "grains": 0.60}, 0.70, 0.72)
+        decision, reasons = P.evaluate_promotion(
+            chall, champ, {"vegetables": 1.25, "grains": 0.60}, 0.70, 0.72
+        )
         assert decision == "keep"
         assert any("regressed" in r for r in reasons)
 
@@ -170,7 +180,8 @@ class TestPromotionGate:
         reg = {"models": [{"trained_at": "2026-01-01T00:00:00Z"}]}
         fired = [{"fired": True, "severity": "critical"}]
         assert P.should_retrain(reg, fired, today=dt.date(2026, 1, 8))[0]
-        assert not P.should_retrain(reg, [{"fired": True, "severity": "warn"}],
-                                    today=dt.date(2026, 1, 8))[0]
+        assert not P.should_retrain(
+            reg, [{"fired": True, "severity": "warn"}], today=dt.date(2026, 1, 8)
+        )[0]
         stale = {"models": [{"trained_at": "2026-01-01T00:00:00Z"}]}
         assert P.should_retrain(stale, [], today=dt.date(2026, 2, 15))[0]

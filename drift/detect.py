@@ -74,8 +74,9 @@ def rolling_mase(fc: pd.DataFrame, metrics_backtest_mase: float) -> tuple[float,
     return float(mases.mean()), int(mases.size)
 
 
-def page_hinkley(residuals: np.ndarray, delta: float = T.PH_DELTA,
-                 lam: float = T.PH_LAMBDA) -> tuple[bool, float]:
+def page_hinkley(
+    residuals: np.ndarray, delta: float = T.PH_DELTA, lam: float = T.PH_LAMBDA
+) -> tuple[bool, float]:
     """Page–Hinkley change-point on the |residual| stream.
 
     A variance regime shift is a level shift in |residual|, so the detector runs on
@@ -101,7 +102,7 @@ def page_hinkley(residuals: np.ndarray, delta: float = T.PH_DELTA,
 def coverage_gap(metrics: pd.DataFrame) -> tuple[float, int]:
     """|coverage_80 − 0.80| over the last 12 weeks of live scoring."""
     m = metrics[metrics["scope"] == "overall"]
-    m = m[m["is_backtest"] == False]  # noqa: E712
+    m = m[~metrics["is_backtest"].astype(bool)]
     window = m.sort_values("target_week").tail(T.COVERAGE_WINDOW)
     cov = window["coverage_80"].dropna()
     if cov.empty:
@@ -117,9 +118,13 @@ def severity_for(test: str, statistic: float, fired: bool) -> str:
     return "critical" if test in ("rolling_mase",) else "warn"
 
 
-def check_feature_drift(reference: pd.DataFrame, current: pd.DataFrame,
-                        top_features: list[str], run_id: str,
-                        checked_on: dt.date) -> list[dict]:
+def check_feature_drift(
+    reference: pd.DataFrame,
+    current: pd.DataFrame,
+    top_features: list[str],
+    run_id: str,
+    checked_on: dt.date,
+) -> list[dict]:
     """PSI + KS on the top-gain features. PSI on 200 features gives 200 alerts and
     no information — only the top 20 by gain are tested (10-EVALUATION.md)."""
     rows = []
@@ -134,72 +139,109 @@ def check_feature_drift(reference: pd.DataFrame, current: pd.DataFrame,
             ("psi", stat, T.PSI_NONE, None),
             ("ks", ks_stat, 0.05, p),
         ):
-            fired = (test == "psi" and value > T.PSI_NONE) or (test == "ks" and pv is not None and pv < T.KS_ALPHA)
+            fired = (test == "psi" and value > T.PSI_NONE) or (
+                test == "ks" and pv is not None and pv < T.KS_ALPHA
+            )
             if fired or test == "psi":
-                rows.append({
-                    "run_id": run_id, "checked_on": checked_on, "channel": "feature",
-                    "subject": f, "test": test, "statistic": round(value, 5),
-                    "threshold": threshold, "p_value": round(pv, 5) if pv is not None else None,
-                    "fired": fired, "severity": severity_for(test, value, fired),
-                    "window_start": checked_on - dt.timedelta(weeks=4), "window_end": checked_on,
-                    "note": human_feature_note(f, test, value, pv, fired),
-                })
+                rows.append(
+                    {
+                        "run_id": run_id,
+                        "checked_on": checked_on,
+                        "channel": "feature",
+                        "subject": f,
+                        "test": test,
+                        "statistic": round(value, 5),
+                        "threshold": threshold,
+                        "p_value": round(pv, 5) if pv is not None else None,
+                        "fired": fired,
+                        "severity": severity_for(test, value, fired),
+                        "window_start": checked_on - dt.timedelta(weeks=4),
+                        "window_end": checked_on,
+                        "note": human_feature_note(f, test, value, pv, fired),
+                    }
+                )
     return rows
 
 
-def human_feature_note(feature: str, test: str, value: float, p_value: float | None,
-                       fired: bool) -> str:
+def human_feature_note(
+    feature: str, test: str, value: float, p_value: float | None, fired: bool
+) -> str:
     if not fired:
         return f"No actionable shift in feature {feature} ({test} {value:.3f})."
     if p_value is not None:
-        return (f"Feature distribution for {feature} shifted ({test} statistic {value:.3f}, "
-                f"p={p_value:.3f}); a change in what feeds the model.")
-    return (f"Feature distribution for {feature} shifted (PSI {value:.3f}); "
-            f"the inputs the model sees are no longer the inputs it trained on.")
+        return (
+            f"Feature distribution for {feature} shifted ({test} statistic {value:.3f}, "
+            f"p={p_value:.3f}); a change in what feeds the model."
+        )
+    return (
+        f"Feature distribution for {feature} shifted (PSI {value:.3f}); "
+        f"the inputs the model sees are no longer the inputs it trained on."
+    )
 
 
-def check_residual_drift(fc: pd.DataFrame, metrics: pd.DataFrame, run_id: str,
-                         checked_on: dt.date) -> list[dict]:
+def check_residual_drift(
+    fc: pd.DataFrame, metrics: pd.DataFrame, run_id: str, checked_on: dt.date
+) -> list[dict]:
     """Rolling MASE (2-week rule), Page–Hinkley, coverage gap — the relationship
     breaking, not just the inputs moving."""
     rows = []
     # rolling MASE
     if not fc.empty and "mase" in fc.columns:
         backtest_mase = None
-        bt = metrics[(metrics["is_backtest"] == True) & (metrics["scope"] == "overall")]  # noqa: E712
+        bt = metrics[metrics["is_backtest"] & (metrics["scope"] == "overall")]
         if not bt.empty:
             backtest_mase = float(bt["mase"].dropna().mean())
         rm, n = rolling_mase(fc, backtest_mase)
         if np.isfinite(rm) and backtest_mase is not None:
             threshold = backtest_mase * T.ROLLING_MASE_MULT
             fired = rm > threshold and n >= T.ROLLING_MASE_CONSECUTIVE
-            rows.append({
-                "run_id": run_id, "checked_on": checked_on, "channel": "residual",
-                "subject": "overall", "test": "rolling_mase", "statistic": round(rm, 4),
-                "threshold": round(threshold, 4), "p_value": None, "fired": fired,
-                "severity": "critical" if fired else "info",
-                "window_start": checked_on - dt.timedelta(weeks=T.ROLLING_MASE_WINDOW),
-                "window_end": checked_on,
-                "note": (f"Rolling MASE {rm:.2f} vs backtest {backtest_mase:.2f} "
-                         f"since {checked_on - dt.timedelta(weeks=T.ROLLING_MASE_WINDOW)}"
-                         if not fired else
-                         f"Rolling MASE {rm:.2f} vs backtest {backtest_mase:.2f} — the "
-                         f"relationship between features and prices has moved."),
-            })
+            rows.append(
+                {
+                    "run_id": run_id,
+                    "checked_on": checked_on,
+                    "channel": "residual",
+                    "subject": "overall",
+                    "test": "rolling_mase",
+                    "statistic": round(rm, 4),
+                    "threshold": round(threshold, 4),
+                    "p_value": None,
+                    "fired": fired,
+                    "severity": "critical" if fired else "info",
+                    "window_start": checked_on - dt.timedelta(weeks=T.ROLLING_MASE_WINDOW),
+                    "window_end": checked_on,
+                    "note": (
+                        f"Rolling MASE {rm:.2f} vs backtest {backtest_mase:.2f} "
+                        f"since {checked_on - dt.timedelta(weeks=T.ROLLING_MASE_WINDOW)}"
+                        if not fired
+                        else f"Rolling MASE {rm:.2f} vs backtest {backtest_mase:.2f} — the "
+                        f"relationship between features and prices has moved."
+                    ),
+                }
+            )
     # coverage gap
     gap, n = coverage_gap(metrics)
     if np.isfinite(gap):
         fired = gap > T.COVERAGE_GAP_MAX
-        rows.append({
-            "run_id": run_id, "checked_on": checked_on, "channel": "coverage",
-            "subject": "overall", "test": "coverage_gap", "statistic": round(gap, 4),
-            "threshold": T.COVERAGE_GAP_MAX, "p_value": None, "fired": fired,
-            "severity": "warn" if fired else "info",
-            "window_start": checked_on - dt.timedelta(weeks=T.COVERAGE_WINDOW),
-            "window_end": checked_on,
-            "note": (f"80% interval coverage is {0.80 + gap:.0%} — the intervals claim "
-                     f"80% and deliver {0.80 + gap:.0%}; they are lying."
-                     if fired else
-                     f"80% interval coverage within tolerance over the last {n} weeks."),
-        })
+        rows.append(
+            {
+                "run_id": run_id,
+                "checked_on": checked_on,
+                "channel": "coverage",
+                "subject": "overall",
+                "test": "coverage_gap",
+                "statistic": round(gap, 4),
+                "threshold": T.COVERAGE_GAP_MAX,
+                "p_value": None,
+                "fired": fired,
+                "severity": "warn" if fired else "info",
+                "window_start": checked_on - dt.timedelta(weeks=T.COVERAGE_WINDOW),
+                "window_end": checked_on,
+                "note": (
+                    f"80% interval coverage is {0.80 + gap:.0%} — the intervals claim "
+                    f"80% and deliver {0.80 + gap:.0%}; they are lying."
+                    if fired
+                    else f"80% interval coverage within tolerance over the last {n} weeks."
+                ),
+            }
+        )
     return rows

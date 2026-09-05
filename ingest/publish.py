@@ -20,12 +20,11 @@ import datetime as dt
 import hashlib
 import json
 import shutil
-from pathlib import Path
 
 import pandas as pd
 
 from contracts import item_catalog
-from contracts.schemas import as_of, latest_revision, validate_frame
+from contracts.schemas import validate_frame
 from ingest import config, normalise
 from ingest.parse_annex import ParsedAnnex
 from ingest.parse_spi import ParsedSPI
@@ -120,26 +119,28 @@ def annex_to_frame(annex: ParsedAnnex, resolver: ItemResolver) -> pd.DataFrame:
         # the annex's own unit string is what the sheet printed for THIS item row
         unit_norm_r, qty_r = normalise.parse_unit(r.unit_raw)
         price_per_unit = round(r.price_avg / qty_r, 4) if r.price_avg is not None else None
-        rows.append({
-            "week_ending": annex.week_ending,
-            "city_code": r.city_code,
-            "city_en": normalise.CITY_EN[r.city_code],
-            "city_ur": normalise.CITY_UR[r.city_code],
-            "item_code": code,
-            "item_en": meta["item_en"],
-            "item_ur": meta["item_ur"],
-            "unit_raw": r.unit_raw,
-            "unit_norm": unit_norm_r,
-            "qty_norm": qty_r,
-            "price_min": r.price_min,
-            "price_avg": r.price_avg,
-            "price_max": r.price_max,
-            "price_per_unit": price_per_unit,
-            "source": "pbs_spi_annex",
-            "source_url": annex.source_url,
-            "ingested_at": ingested,
-            "revision": 0,
-        })
+        rows.append(
+            {
+                "week_ending": annex.week_ending,
+                "city_code": r.city_code,
+                "city_en": normalise.CITY_EN[r.city_code],
+                "city_ur": normalise.CITY_UR[r.city_code],
+                "item_code": code,
+                "item_en": meta["item_en"],
+                "item_ur": meta["item_ur"],
+                "unit_raw": r.unit_raw,
+                "unit_norm": unit_norm_r,
+                "qty_norm": qty_r,
+                "price_min": r.price_min,
+                "price_avg": r.price_avg,
+                "price_max": r.price_max,
+                "price_per_unit": price_per_unit,
+                "source": "pbs_spi_annex",
+                "source_url": annex.source_url,
+                "ingested_at": ingested,
+                "revision": 0,
+            }
+        )
     df = pd.DataFrame(rows)
     if df.empty:
         return df
@@ -149,8 +150,9 @@ def annex_to_frame(annex: ParsedAnnex, resolver: ItemResolver) -> pd.DataFrame:
     return df
 
 
-def spi_to_frame(spi: ParsedSPI, week_ending: dt.date, source_url: str,
-                 resolver: ItemResolver) -> pd.DataFrame:
+def spi_to_frame(
+    spi: ParsedSPI, week_ending: dt.date, source_url: str, resolver: ItemResolver
+) -> pd.DataFrame:
     """ParsedSPI → national_weekly rows (item '000' = the headline SPI index)."""
     ingested = pd.Timestamp.now(dt.UTC).floor("s")
     rows = []
@@ -162,20 +164,22 @@ def spi_to_frame(spi: ParsedSPI, week_ending: dt.date, source_url: str,
                 code, _ = resolver.resolve(r.item_raw, r.unit_raw)
             except Exception:
                 continue  # national table rows without a resolvable name are logged elsewhere
-        rows.append({
-            "week_ending": week_ending,
-            "item_code": code,
-            "price_this_week": r.price_this_week,
-            "price_prev_week": r.price_prev_week,
-            "price_same_week_last_year": r.price_same_week_last_year,
-            "pct_change_wow": r.pct_change_wow,
-            "pct_change_yoy": r.pct_change_yoy,
-            "spi_weight_combined": None,
-            "spi_weight_lowest_quintile": None,
-            "source_url": source_url,
-            "revision": 0,
-            "ingested_at": ingested,
-        })
+        rows.append(
+            {
+                "week_ending": week_ending,
+                "item_code": code,
+                "price_this_week": r.price_this_week,
+                "price_prev_week": r.price_prev_week,
+                "price_same_week_last_year": r.price_same_week_last_year,
+                "pct_change_wow": r.pct_change_wow,
+                "pct_change_yoy": r.pct_change_yoy,
+                "spi_weight_combined": None,
+                "spi_weight_lowest_quintile": None,
+                "source_url": source_url,
+                "revision": 0,
+                "ingested_at": ingested,
+            }
+        )
     df = pd.DataFrame(rows)
     if df.empty:
         return df
@@ -224,10 +228,7 @@ def append_week(existing: pd.DataFrame, new_prices: pd.DataFrame) -> tuple[pd.Da
         if max(diffs) <= 0.01:
             return existing, 0
 
-    rev_by_key = {
-        k: int(v)
-        for k, v in existing.groupby(keys)["revision"].max().items()
-    }
+    rev_by_key = {k: int(v) for k, v in existing.groupby(keys)["revision"].max().items()}
     revisions: list[int] = []
     for row in merged.itertuples(index=False):
         key = (row.week_ending, row.city_code, row.item_code)
@@ -246,11 +247,18 @@ def append_week(existing: pd.DataFrame, new_prices: pd.DataFrame) -> tuple[pd.Da
     merged["revision"] = pd.Series(revisions, dtype="int32")
 
     # keep only genuinely new rows (not already in the panel at the same revision)
-    existing_keys = set(map(tuple, existing[keys + ["revision"]].itertuples(index=False, name=None)))
+    existing_keys = set(
+        map(tuple, existing[keys + ["revision"]].itertuples(index=False, name=None))
+    )
     keep = [
         i
         for i in merged.index
-        if (merged.at[i, "week_ending"], merged.at[i, "city_code"], merged.at[i, "item_code"], int(merged.at[i, "revision"]))
+        if (
+            merged.at[i, "week_ending"],
+            merged.at[i, "city_code"],
+            merged.at[i, "item_code"],
+            int(merged.at[i, "revision"]),
+        )
         not in existing_keys
     ]
     new_rows = merged.loc[keep, existing.columns.intersection(merged.columns)]
@@ -258,7 +266,9 @@ def append_week(existing: pd.DataFrame, new_prices: pd.DataFrame) -> tuple[pd.Da
     for c in PRICE_COLS:
         out[c] = out[c].astype("float64")
     out["revision"] = out["revision"].astype("int32")
-    out = out.sort_values(["week_ending", "city_code", "item_code", "revision"]).reset_index(drop=True)
+    out = out.sort_values(["week_ending", "city_code", "item_code", "revision"]).reset_index(
+        drop=True
+    )
     n_new_rev = int(len(new_rows[new_rows["revision"] > 0]))
     return out, n_new_rev
 
@@ -304,22 +314,24 @@ def write_items(panel: pd.DataFrame, resolver: ItemResolver) -> None:
     for code in codes:
         meta = resolver.metadata(code)
         sub = panel[panel["item_code"] == code]
-        rows.append({
-            "item_code": code,
-            "item_en": meta["item_en"],
-            "item_ur": meta["item_ur"],
-            "unit_raw": meta["unit_raw"],
-            "unit_norm": meta["unit_norm"],
-            "qty_norm": meta["qty_norm"],
-            "category": meta["category"],
-            "spi_weight": meta["spi_weight"],
-            "is_food": meta["is_food"],
-            "is_administered": meta["is_administered"],
-            "pbs_aliases": meta["pbs_aliases"],
-            "first_seen": pd.to_datetime(sub["week_ending"]).min().date(),
-            "last_seen": pd.to_datetime(sub["week_ending"]).max().date(),
-            "notes": None,
-        })
+        rows.append(
+            {
+                "item_code": code,
+                "item_en": meta["item_en"],
+                "item_ur": meta["item_ur"],
+                "unit_raw": meta["unit_raw"],
+                "unit_norm": meta["unit_norm"],
+                "qty_norm": meta["qty_norm"],
+                "category": meta["category"],
+                "spi_weight": meta["spi_weight"],
+                "is_food": meta["is_food"],
+                "is_administered": meta["is_administered"],
+                "pbs_aliases": meta["pbs_aliases"],
+                "first_seen": pd.to_datetime(sub["week_ending"]).min().date(),
+                "last_seen": pd.to_datetime(sub["week_ending"]).max().date(),
+                "notes": None,
+            }
+        )
     df = pd.DataFrame(rows)
     df["qty_norm"] = df["qty_norm"].astype("float64")
     df["spi_weight"] = df["spi_weight"].astype("float64")
@@ -332,16 +344,19 @@ def write_items(panel: pd.DataFrame, resolver: ItemResolver) -> None:
 def write_cities() -> None:
     from ingest.normalise import CITY_EN, CITY_LATLON, CITY_PROVINCE, CITY_UR
 
-    rows = [{
-        "city_code": code,
-        "city_en": CITY_EN[code],
-        "city_ur": CITY_UR[code],
-        "province_en": CITY_PROVINCE[code][0],
-        "province_ur": CITY_PROVINCE[code][1],
-        "lat": CITY_LATLON[code][0],
-        "lon": CITY_LATLON[code][1],
-        "pbs_order": int(code) if code != "00" else 0,
-    } for code in sorted(CITY_UR)]
+    rows = [
+        {
+            "city_code": code,
+            "city_en": CITY_EN[code],
+            "city_ur": CITY_UR[code],
+            "province_en": CITY_PROVINCE[code][0],
+            "province_ur": CITY_PROVINCE[code][1],
+            "lat": CITY_LATLON[code][0],
+            "lon": CITY_LATLON[code][1],
+            "pbs_order": int(code) if code != "00" else 0,
+        }
+        for code in sorted(CITY_UR)
+    ]
     df = pd.DataFrame(rows)
     df["pbs_order"] = df["pbs_order"].astype("int32")
     validate_frame(df, "cities")

@@ -35,8 +35,15 @@ class TestHealth:
         r = client.get("/api/health")
         assert r.status_code == 200
         b = r.json()
-        for key in ("status", "panel_week", "forecast_run_id", "model_version",
-                    "rows", "uptime_s", "is_fixture"):
+        for key in (
+            "status",
+            "panel_week",
+            "forecast_run_id",
+            "model_version",
+            "rows",
+            "uptime_s",
+            "is_fixture",
+        ):
             assert key in b
         assert b["rows"] > 0
 
@@ -103,14 +110,22 @@ class TestPrices:
         _meta_ok(b)
         assert len(b["data"]) == 5
         row = b["data"][0]
-        for key in ("week_ending", "price_min", "price_avg", "price_max",
-                    "price_per_unit", "revision", "source_url"):
+        for key in (
+            "week_ending",
+            "price_min",
+            "price_avg",
+            "price_max",
+            "price_per_unit",
+            "revision",
+            "source_url",
+        ):
             assert key in row
         assert row["source_url"], "provenance per row"
 
     def test_date_range_filter(self, client):
-        b = client.get("/api/prices?city_code=05&item_code=019"
-                       "&from=2026-01-01&to=2026-03-01").json()
+        b = client.get(
+            "/api/prices?city_code=05&item_code=019" "&from=2026-01-01&to=2026-03-01"
+        ).json()
         weeks = [dt.date.fromisoformat(r["week_ending"]) for r in b["data"]]
         assert weeks and all(dt.date(2026, 1, 1) <= w <= dt.date(2026, 3, 1) for w in weeks)
 
@@ -129,9 +144,19 @@ class TestPrices:
 class TestForecast:
     def test_carries_forecast_and_its_trustworthiness_together(self, client):
         b = client.get("/api/forecast?city_code=05&item_code=019").json()
-        for key in ("p10", "p50", "p90", "last_actual", "last_actual_week", "direction",
-                    "pct_change_expected", "model_version", "made_on", "history",
-                    "recent_error"):
+        for key in (
+            "p10",
+            "p50",
+            "p90",
+            "last_actual",
+            "last_actual_week",
+            "direction",
+            "pct_change_expected",
+            "model_version",
+            "made_on",
+            "history",
+            "recent_error",
+        ):
             assert key in b
         assert b["recent_error"]["n_weeks"] >= 0, "the forecast and its error arrive together"
 
@@ -189,17 +214,26 @@ class TestScorecard:
         _meta_ok(b)
         assert len(b["data"]) > 0
         row = b["data"][0]
-        for key in ("target_week", "model_name", "mase", "smape", "mae",
-                    "coverage_80", "bias", "n_obs"):
+        for key in (
+            "target_week",
+            "model_name",
+            "mase",
+            "smape",
+            "mae",
+            "coverage_80",
+            "bias",
+            "n_obs",
+        ):
             assert key in row
 
     def test_baselines_are_present_so_the_reader_sees_what_was_beaten(self, client):
         rows = client.get("/api/scorecard?scope=overall&limit=200").json()["data"]
         names = {r["model_name"] for r in rows}
         assert "global_gbm" in names
-        assert names & {"seasonal_naive", "random_walk"}, (
-            "the scorecard must show what the model beat"
-        )
+        assert names & {
+            "seasonal_naive",
+            "random_walk",
+        }, "the scorecard must show what the model beat"
 
     def test_per_item_scope(self, client):
         rows = client.get("/api/scorecard?scope=item&item_code=019").json()["data"]
@@ -259,9 +293,19 @@ class TestConventions:
         r = client.get("/api/openapi.json")
         assert r.status_code == 200
         paths = r.json()["paths"]
-        for route in ("/api/health", "/api/cities", "/api/items", "/api/prices",
-                      "/api/forecast", "/api/movers", "/api/scorecard", "/api/drift",
-                      "/api/model", "/api/download/panel.parquet", "/api/download/panel.csv"):
+        for route in (
+            "/api/health",
+            "/api/cities",
+            "/api/items",
+            "/api/prices",
+            "/api/forecast",
+            "/api/movers",
+            "/api/scorecard",
+            "/api/drift",
+            "/api/model",
+            "/api/download/panel.parquet",
+            "/api/download/panel.csv",
+        ):
             assert route in paths, f"Contract 3 route {route} missing from OpenAPI"
 
     def test_api_does_not_import_training_code(self):
@@ -280,7 +324,10 @@ class TestConventions:
             "print(','.join(banned))"
         )
         out = subprocess.run(
-            [sys.executable, "-c", code], cwd=repo, capture_output=True, text=True,
+            [sys.executable, "-c", code],
+            cwd=repo,
+            capture_output=True,
+            text=True,
             env={**os.environ, "BHAO_DATA_DIR": "contracts/fixtures"},
         )
         assert out.returncode == 0, out.stderr

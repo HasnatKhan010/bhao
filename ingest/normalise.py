@@ -13,14 +13,15 @@ import re
 from pathlib import Path
 
 from contracts import item_catalog
-from contracts.enums import UNIT_NORM, validate as validate_enum
+from contracts.enums import UNIT_NORM
+from contracts.enums import validate as validate_enum
 
 # ---------------------------------------------------------------------------
 # numbers — the one coercion function
 # ---------------------------------------------------------------------------
 
 _NUM_STRIP_RE = re.compile(r"[,\s]|Rs\.?|%")
-_BAD_TOKENS = {"-", "--", "", "n/a", "na", "nil", "none", "nan", "-"}
+_BAD_TOKENS = {"-", "--", "", "n/a", "na", "nil", "none", "nan"}
 
 
 def coerce_number(v) -> float | None:
@@ -90,9 +91,7 @@ UNIT_MAP: dict[str, tuple[str, float]] = {
     "visit": ("each", 1.0),
 }
 
-_UNIT_QTY_RE = re.compile(
-    r"^\s*(?P<qty>[\d\.]+)\s*(?P<unit>[A-Za-z\.]+)\s*(?P<rest>.*)$"
-)
+_UNIT_QTY_RE = re.compile(r"^\s*(?P<qty>[\d\.]+)\s*(?P<unit>[A-Za-z\.]+)\s*(?P<rest>.*)$")
 
 
 def parse_unit(raw: str) -> tuple[str, float]:
@@ -127,14 +126,13 @@ def parse_unit(raw: str) -> tuple[str, float]:
         if base and qty > 0:
             return (base[0], qty)
 
-    raise ValueError(
-        f"unmatched unit string {raw!r}; extend UNIT_MAP and note it in STATUS.md"
-    )
+    raise ValueError(f"unmatched unit string {raw!r}; extend UNIT_MAP and note it in STATUS.md")
 
 
 # ---------------------------------------------------------------------------
 # items
 # ---------------------------------------------------------------------------
+
 
 def resolve_item(raw: str, alias_index: dict[str, str] | None = None) -> str:
     """Normalised alias lookup → item_code. A miss raises; callers may mint a NEW
@@ -233,12 +231,24 @@ CITY_PROVINCE: dict[str, tuple[str, str]] = {
 }
 
 CITY_LATLON: dict[str, tuple[float, float]] = {
-    "01": (33.6844, 73.0479), "02": (33.5651, 73.0169), "03": (32.1877, 74.1945),
-    "04": (32.4945, 74.5229), "05": (31.5204, 74.3587), "06": (31.4187, 73.0791),
-    "07": (32.0836, 72.6711), "08": (30.1575, 71.5249), "09": (29.3956, 71.6836),
-    "10": (24.8607, 67.0011), "11": (25.3960, 68.3578), "12": (27.7052, 68.8574),
-    "13": (27.5589, 68.2123), "14": (34.0151, 71.5249), "15": (32.9887, 70.6056),
-    "16": (30.1798, 66.9750), "17": (27.8006, 66.6258), "00": (None, None),
+    "01": (33.6844, 73.0479),
+    "02": (33.5651, 73.0169),
+    "03": (32.1877, 74.1945),
+    "04": (32.4945, 74.5229),
+    "05": (31.5204, 74.3587),
+    "06": (31.4187, 73.0791),
+    "07": (32.0836, 72.6711),
+    "08": (30.1575, 71.5249),
+    "09": (29.3956, 71.6836),
+    "10": (24.8607, 67.0011),
+    "11": (25.3960, 68.3578),
+    "12": (27.7052, 68.8574),
+    "13": (27.5589, 68.2123),
+    "14": (34.0151, 71.5249),
+    "15": (32.9887, 70.6056),
+    "16": (30.1798, 66.9750),
+    "17": (27.8006, 66.6258),
+    "00": (None, None),
 }
 
 

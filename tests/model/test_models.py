@@ -34,31 +34,55 @@ def _panel(n_items: int = 3, n_cities: int = 2, weeks: int = WEEKS) -> pd.DataFr
             for w in range(weeks):
                 week = start + dt.timedelta(weeks=w)
                 avg = round(float(path[w]), 2)
-                rows.append({
-                    "week_ending": week, "city_code": city, "city_en": f"City{ci}",
-                    "city_ur": "شہر", "item_code": item, "item_en": f"Item{ii}",
-                    "item_ur": "چیز", "unit_raw": "1 Kg", "unit_norm": "kg",
-                    "qty_norm": 1.0, "price_min": round(avg * 0.97, 2),
-                    "price_avg": avg, "price_max": round(avg * 1.03, 2),
-                    "price_per_unit": avg, "source": "pbs_spi_annex",
-                    "source_url": "https://x.example/a.xlsx",
-                    "ingested_at": pd.Timestamp(week + dt.timedelta(days=2), tz="UTC"),
-                    "revision": np.int32(0),
-                })
+                rows.append(
+                    {
+                        "week_ending": week,
+                        "city_code": city,
+                        "city_en": f"City{ci}",
+                        "city_ur": "شہر",
+                        "item_code": item,
+                        "item_en": f"Item{ii}",
+                        "item_ur": "چیز",
+                        "unit_raw": "1 Kg",
+                        "unit_norm": "kg",
+                        "qty_norm": 1.0,
+                        "price_min": round(avg * 0.97, 2),
+                        "price_avg": avg,
+                        "price_max": round(avg * 1.03, 2),
+                        "price_per_unit": avg,
+                        "source": "pbs_spi_annex",
+                        "source_url": "https://x.example/a.xlsx",
+                        "ingested_at": pd.Timestamp(week + dt.timedelta(days=2), tz="UTC"),
+                        "revision": np.int32(0),
+                    }
+                )
     return pd.DataFrame(rows).astype(
         {"qty_norm": "float64", "revision": "int32", "ingested_at": "datetime64[us, UTC]"}
     )
 
 
 def _items() -> pd.DataFrame:
-    return pd.DataFrame([{
-        "item_code": f"{i + 1:03d}", "item_en": f"Item{i}", "item_ur": "چیز",
-        "unit_raw": "1 Kg", "unit_norm": "kg", "qty_norm": 1.0,
-        "category": ["vegetables", "grains", "fuel_energy"][i % 3],
-        "spi_weight": 1.0, "is_food": i % 3 != 2, "is_administered": i % 3 == 2,
-        "pbs_aliases": [f"Item{i}"], "first_seen": dt.date(2025, 1, 2),
-        "last_seen": dt.date(2026, 1, 1), "notes": None,
-    } for i in range(3)])
+    return pd.DataFrame(
+        [
+            {
+                "item_code": f"{i + 1:03d}",
+                "item_en": f"Item{i}",
+                "item_ur": "چیز",
+                "unit_raw": "1 Kg",
+                "unit_norm": "kg",
+                "qty_norm": 1.0,
+                "category": ["vegetables", "grains", "fuel_energy"][i % 3],
+                "spi_weight": 1.0,
+                "is_food": i % 3 != 2,
+                "is_administered": i % 3 == 2,
+                "pbs_aliases": [f"Item{i}"],
+                "first_seen": dt.date(2025, 1, 2),
+                "last_seen": dt.date(2026, 1, 1),
+                "notes": None,
+            }
+            for i in range(3)
+        ]
+    )
 
 
 @pytest.fixture(scope="module")
@@ -74,11 +98,17 @@ def items():
 class TestBaselines:
     def test_all_six_exist(self):
         assert set(B.BASELINES) == {
-            "random_walk", "seasonal_naive", "drift", "seasonal_naive_ma", "ets", "arima"
+            "random_walk",
+            "seasonal_naive",
+            "drift",
+            "seasonal_naive_ma",
+            "ets",
+            "arima",
         }
 
-    @pytest.mark.parametrize("name", ["random_walk", "seasonal_naive", "drift",
-                                      "seasonal_naive_ma", "ets"])
+    @pytest.mark.parametrize(
+        "name", ["random_walk", "seasonal_naive", "drift", "seasonal_naive_ma", "ets"]
+    )
     def test_produces_one_row_per_series_with_monotone_quantiles(self, panel, name):
         out = B.BASELINES[name](panel, dt.date(2026, 7, 16))
         assert len(out) == 6  # 2 cities x 3 items
@@ -89,8 +119,12 @@ class TestBaselines:
 
     def test_random_walk_is_last_value(self, panel):
         out = B.random_walk(panel)
-        last = (panel.sort_values("week_ending").groupby(["city_code", "item_code"])
-                .tail(1).set_index(["city_code", "item_code"])["price_avg"])
+        last = (
+            panel.sort_values("week_ending")
+            .groupby(["city_code", "item_code"])
+            .tail(1)
+            .set_index(["city_code", "item_code"])["price_avg"]
+        )
         got = out.set_index(["city_code", "item_code"])["p50"]
         assert np.allclose(got.sort_index().to_numpy(), last.sort_index().to_numpy(), atol=0.01)
 
@@ -117,8 +151,10 @@ class TestMetrics:
         den = M.rw_denominator(y)
         assert den == pytest.approx(2.0)
         keys = pd.DataFrame({"city_code": ["01"], "item_code": ["001"]})
-        dens = pd.Series([den], index=pd.MultiIndex.from_tuples(
-            [("01", "001")], names=["city_code", "item_code"]))
+        dens = pd.Series(
+            [den],
+            index=pd.MultiIndex.from_tuples([("01", "001")], names=["city_code", "item_code"]),
+        )
         mase = M.pooled_mase(keys, np.array([112.0]), np.array([110.0]), dens)
         assert mase == pytest.approx(1.0)
 
@@ -168,12 +204,17 @@ class TestFeatureDiscipline:
 
     def test_cross_sectional_features_are_lagged(self, panel, items):
         feats = build_features(panel, items).sort_values(
-            ["city_code", "item_code", "week_ending"], kind="mergesort")
-        one = feats[(feats["city_code"] == "01") & (feats["item_code"] == "001")].reset_index(drop=True)
+            ["city_code", "item_code", "week_ending"], kind="mergesort"
+        )
+        one = feats[(feats["city_code"] == "01") & (feats["item_code"] == "001")].reset_index(
+            drop=True
+        )
         # xs_item_mean_lag1 at week t must equal the cross-city mean at week t-1
         wk = one["week_dt"].iloc[10]
         prev_wk = wk - pd.Timedelta(weeks=1)
-        prev_mean = feats[(feats["week_dt"] == prev_wk) & (feats["item_code"] == "001")]["price_avg"].mean()
+        prev_mean = feats[(feats["week_dt"] == prev_wk) & (feats["item_code"] == "001")][
+            "price_avg"
+        ].mean()
         assert one["xs_item_mean_lag1"].iloc[10] == pytest.approx(prev_mean)
 
     def test_hijri_flags_present_and_binary(self, panel, items):
@@ -189,8 +230,16 @@ class TestFeatureDiscipline:
 
     def test_feature_columns_exclude_target_and_raw_price(self, panel, items):
         cols = feature_columns(build_features(panel, items))
-        for banned in ("target", "target_log", "price_avg", "price_min", "price_max",
-                       "week_ending", "ingested_at", "revision"):
+        for banned in (
+            "target",
+            "target_log",
+            "price_avg",
+            "price_min",
+            "price_max",
+            "week_ending",
+            "ingested_at",
+            "revision",
+        ):
             assert banned not in cols
 
 
@@ -221,9 +270,12 @@ class TestGlobalGBM:
 class TestBacktestRun:
     def test_runs_and_reports_both_denominators(self, panel, items):
         fc, folds, summary = run_backtest(
-            panel, items, None,
+            panel,
+            items,
+            None,
             cfg=RunConfig(n_folds=3, include_slow=False, include_gbm=False),
-            run_id="test-run", progress=False,
+            run_id="test-run",
+            progress=False,
         )
         assert summary["folds"] == 3
         assert not fc.empty
@@ -236,18 +288,24 @@ class TestBacktestRun:
         from contracts.schemas import validate_frame
 
         fc, _, _ = run_backtest(
-            panel, items, None,
+            panel,
+            items,
+            None,
             cfg=RunConfig(n_folds=2, include_slow=False, include_gbm=False),
-            run_id="test-run-2", progress=False,
+            run_id="test-run-2",
+            progress=False,
         )
         fc = fc.dropna(subset=["p50"])
         validate_frame(fc, "forecasts")
 
     def test_exactly_one_champion_per_series_per_target_week(self, panel, items):
         fc, _, _ = run_backtest(
-            panel, items, None,
+            panel,
+            items,
+            None,
             cfg=RunConfig(n_folds=2, include_slow=False, include_gbm=False),
-            run_id="test-run-3", progress=False,
+            run_id="test-run-3",
+            progress=False,
         )
         champ = fc[fc["is_champion"]]
         counts = champ.groupby(["city_code", "item_code", "target_week"]).size()

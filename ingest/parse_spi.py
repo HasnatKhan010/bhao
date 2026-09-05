@@ -56,14 +56,18 @@ def _parse_page2_items(ws) -> list[NationalRow]:
         p_now = coerce_number(row[4].value)
         if p_now is None:
             continue  # section headers carry no price
-        rows.append(NationalRow(
-            sr=int(sr), item_raw=name, unit_raw=unit,
-            price_this_week=p_now,
-            price_prev_week=coerce_number(row[5].value),
-            price_same_week_last_year=coerce_number(row[6].value),
-            pct_change_wow=coerce_number(row[7].value),
-            pct_change_yoy=coerce_number(row[8].value),
-        ))
+        rows.append(
+            NationalRow(
+                sr=int(sr),
+                item_raw=name,
+                unit_raw=unit,
+                price_this_week=p_now,
+                price_prev_week=coerce_number(row[5].value),
+                price_same_week_last_year=coerce_number(row[6].value),
+                pct_change_wow=coerce_number(row[7].value),
+                pct_change_yoy=coerce_number(row[8].value),
+            )
+        )
     return rows
 
 
@@ -99,7 +103,9 @@ def _parse_page1_headline(ws) -> NationalRow | None:
         if label is not None and not isinstance(label, str):
             continue
         return NationalRow(
-            sr=0, item_raw="SPI (Combined, 51 items)", unit_raw="Index",
+            sr=0,
+            item_raw="SPI (Combined, 51 items)",
+            unit_raw="Index",
             price_this_week=p_now,
             price_prev_week=coerce_number(row[4].value),
             price_same_week_last_year=coerce_number(row[5].value),
@@ -119,7 +125,9 @@ def parse_spi(path, page1: str = "Page 1", page2: str = "Page 2", min_items: int
         if page1 in wb.sheetnames:
             out.headline = _parse_page1_headline(wb[page1])
 
-        assert len(out.rows) >= min_items, f"only {len(out.rows)} national item rows parsed from {page2}"
+        assert (
+            len(out.rows) >= min_items
+        ), f"only {len(out.rows)} national item rows parsed from {page2}"
         assert out.headline is not None, f"no 'Combined' headline row found on {page1}"
         # the headline travels with the rows so publish sees item "000"
         out.rows.append(out.headline)

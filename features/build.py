@@ -43,8 +43,9 @@ def hijri_table() -> pd.DataFrame:
     return _hijri_cache
 
 
-def build_features(panel: pd.DataFrame, items: pd.DataFrame | None = None,
-                   national: pd.DataFrame | None = None) -> pd.DataFrame:
+def build_features(
+    panel: pd.DataFrame, items: pd.DataFrame | None = None, national: pd.DataFrame | None = None
+) -> pd.DataFrame:
     """One row per (week_ending, city_code, item_code): features computed from the
     past only; `target` = price_avg of target_week (week_ending + 7d).
 
@@ -82,10 +83,16 @@ def build_features(panel: pd.DataFrame, items: pd.DataFrame | None = None,
 
     # --- rolling stats (shift(1): statistics of the past, never the row itself) ---
     for w in ROLLS:
-        for stat, name in (("mean", "roll_mean"), ("std", "roll_std"),
-                           ("min", "roll_min"), ("max", "roll_max")):
+        for stat, name in (
+            ("mean", "roll_mean"),
+            ("std", "roll_std"),
+            ("min", "roll_min"),
+            ("max", "roll_max"),
+        ):
             df[f"{name}_{w}"] = g["price_avg"].transform(
-                lambda s, w=w, stat=stat: s.shift(1).rolling(w, min_periods=max(2, w // 2)).agg(stat)
+                lambda s, w=w, stat=stat: s.shift(1)
+                .rolling(w, min_periods=max(2, w // 2))
+                .agg(stat)
             )
     base = df["roll_mean_52"].fillna(df["roll_mean_26"]).fillna(df["roll_mean_8"])
     sd = df["roll_std_52"].fillna(df["roll_std_26"]).replace(0, np.nan)
@@ -125,8 +132,10 @@ def build_features(panel: pd.DataFrame, items: pd.DataFrame | None = None,
     for c in ("ramadan", "eid_fitr", "eid_adha"):
         if c in df.columns:
             df[c] = df[c].fillna(0).astype(float)
-    df["harvest_flag"] = [1 if m in HARVEST_MONTHS.get(cat, set()) else 0
-                          for m, cat in zip(df["month"], df["category"])]
+    df["harvest_flag"] = [
+        1 if m in HARVEST_MONTHS.get(cat, set()) else 0
+        for m, cat in zip(df["month"], df["category"], strict=False)
+    ]
 
     # --- cross-sectional, LAGGED by one week (anti-leakage, 06 §Traps #2) ---
     # The lagged frame holds, for each df row, that series' values as of ONE WEEK
@@ -138,27 +147,36 @@ def build_features(panel: pd.DataFrame, items: pd.DataFrame | None = None,
     lagged["rank_in_item_lag1"] = grp.rank(pct=True)
     df = df.merge(
         lagged[["week_dt", "city_code", "item_code", "xs_item_mean_lag1", "rank_in_item_lag1"]],
-        on=["week_dt", "city_code", "item_code"], how="left",
+        on=["week_dt", "city_code", "item_code"],
+        how="left",
     )
     df["xs_dev_lag1"] = df["price_avg"] / df["xs_item_mean_lag1"].replace(0, np.nan) - 1
 
     # --- cross-item: category mean (lagged), national SPI index (lagged) ---
-    cat_map = (items.set_index("item_code")["category"] if items is not None and len(items)
-               else pd.Series(dtype="object"))
+    cat_map = (
+        items.set_index("item_code")["category"]
+        if items is not None and len(items)
+        else pd.Series(dtype="object")
+    )
     lagged_cat = df[["week_dt", "item_code"]].copy()
     lagged_cat["category"] = lagged_cat["item_code"].map(cat_map).fillna("other")
     lagged_cat["price_avg"] = df["price_avg"].to_numpy()
     lagged_cat["week_dt"] = lagged_cat["week_dt"] + pd.Timedelta(weeks=1)
     df = df.merge(
         lagged_cat.groupby(["week_dt", "category"])["price_avg"].mean().rename("cat_mean_lag1"),
-        left_on=["week_dt", "category"], right_index=True, how="left",
+        left_on=["week_dt", "category"],
+        right_index=True,
+        how="left",
     )
     if national is not None and len(national):
         nat = national[national["item_code"] == "000"][["week_ending", "price_this_week"]].copy()
         nat["week_dt"] = pd.to_datetime(nat["week_ending"]) + pd.Timedelta(weeks=1)
         df = df.merge(
-            nat.rename(columns={"price_this_week": "spi_index_lag1"})[["week_dt", "spi_index_lag1"]],
-            on="week_dt", how="left",
+            nat.rename(columns={"price_this_week": "spi_index_lag1"})[
+                ["week_dt", "spi_index_lag1"]
+            ],
+            on="week_dt",
+            how="left",
         )
         df["spi_index_lag1"] = df["spi_index_lag1"].ffill()
     else:
@@ -178,10 +196,27 @@ def build_features(panel: pd.DataFrame, items: pd.DataFrame | None = None,
 
 
 SKIP_COLS = {
-    "week_ending", "week_dt", "target_week", "target", "target_log",
-    "price_min", "price_avg", "price_max", "price_per_unit", "_hj_week",
-    "city_en", "city_ur", "item_en", "item_ur", "unit_raw", "source",
-    "source_url", "ingested_at", "revision", "key_merge", "rank_pct",
+    "week_ending",
+    "week_dt",
+    "target_week",
+    "target",
+    "target_log",
+    "price_min",
+    "price_avg",
+    "price_max",
+    "price_per_unit",
+    "_hj_week",
+    "city_en",
+    "city_ur",
+    "item_en",
+    "item_ur",
+    "unit_raw",
+    "source",
+    "source_url",
+    "ingested_at",
+    "revision",
+    "key_merge",
+    "rank_pct",
 }
 
 
@@ -191,7 +226,12 @@ def feature_columns(df: pd.DataFrame) -> list[str]:
     for c in df.columns:
         if c in SKIP_COLS:
             continue
-        if pd.api.types.is_numeric_dtype(df[c]) or c in ("city_code", "item_code", "category", "unit_norm"):
+        if pd.api.types.is_numeric_dtype(df[c]) or c in (
+            "city_code",
+            "item_code",
+            "category",
+            "unit_norm",
+        ):
             cols.append(c)
     return cols
 

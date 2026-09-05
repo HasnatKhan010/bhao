@@ -66,17 +66,21 @@ def _forecast_generic(train: pd.DataFrame, point_fn, resid_fn=None) -> pd.DataFr
     for (city, item), s in _series_map(train).items():
         s = s.dropna()
         if len(s) == 0:
-            rows.append({"city_code": city, "item_code": item, "p10": np.nan,
-                         "p50": np.nan, "p90": np.nan})
+            rows.append(
+                {"city_code": city, "item_code": item, "p10": np.nan, "p50": np.nan, "p90": np.nan}
+            )
             continue
         p50 = point_fn(s)
         if p50 is None or not np.isfinite(p50):
-            rows.append({"city_code": city, "item_code": item, "p10": np.nan,
-                         "p50": np.nan, "p90": np.nan})
+            rows.append(
+                {"city_code": city, "item_code": item, "p10": np.nan, "p50": np.nan, "p90": np.nan}
+            )
             continue
-        resid = resid_fn(s) if resid_fn else np.diff(s.to_numpy()[-(RESID_WINDOW + 1):])
+        resid = resid_fn(s) if resid_fn else np.diff(s.to_numpy()[-(RESID_WINDOW + 1) :])
         p10, p90 = _empirical_interval(np.asarray(resid, dtype=float), float(p50))
-        rows.append({"city_code": city, "item_code": item, "p10": p10, "p50": float(p50), "p90": p90})
+        rows.append(
+            {"city_code": city, "item_code": item, "p10": p10, "p50": float(p50), "p90": p90}
+        )
     return _pack(rows)
 
 
@@ -88,9 +92,11 @@ def random_walk(train: pd.DataFrame, target_week: dt.date | None = None) -> pd.D
     return _forecast_generic(train, lambda s: s.iloc[-1])
 
 
-def seasonal_naive(train: pd.DataFrame, target_week: dt.date | None = None,
-                   season: int = 52) -> pd.DataFrame:
+def seasonal_naive(
+    train: pd.DataFrame, target_week: dt.date | None = None, season: int = 52
+) -> pd.DataFrame:
     """y_hat = y[t+1-season]. The MASE denominator's model."""
+
     def point(s: pd.Series) -> float:
         if target_week is not None:
             want = pd.Timestamp(target_week) - pd.Timedelta(weeks=season)
@@ -116,6 +122,7 @@ def seasonal_naive_4(train: pd.DataFrame, target_week: dt.date | None = None) ->
 
 def drift(train: pd.DataFrame, target_week: dt.date | None = None, k: int = 8) -> pd.DataFrame:
     """y_hat = y[t] + (y[t] - y[t-k]) / k. Cheap trend."""
+
     def point(s: pd.Series) -> float:
         y = s.to_numpy(dtype=float)
         if len(y) < k + 1:
@@ -125,14 +132,14 @@ def drift(train: pd.DataFrame, target_week: dt.date | None = None, k: int = 8) -
     return _forecast_generic(train, point)
 
 
-def seasonal_naive_ma(train: pd.DataFrame, target_week: dt.date | None = None,
-                      window: int = 4) -> pd.DataFrame:
+def seasonal_naive_ma(
+    train: pd.DataFrame, target_week: dt.date | None = None, window: int = 4
+) -> pd.DataFrame:
     """Mean of the last 4 weeks. Robust to one bad print."""
     return _forecast_generic(train, lambda s: float(s.iloc[-window:].mean()))
 
 
-def ets(train: pd.DataFrame, target_week: dt.date | None = None,
-        min_obs: int = 12) -> pd.DataFrame:
+def ets(train: pd.DataFrame, target_week: dt.date | None = None, min_obs: int = 12) -> pd.DataFrame:
     """statsmodels ExponentialSmoothing per series (additive trend, no season —
     52-week seasonality needs 104+ obs, which most series do not have)."""
     from statsmodels.tsa.holtwinters import ExponentialSmoothing
@@ -152,21 +159,26 @@ def ets(train: pd.DataFrame, target_week: dt.date | None = None,
                 resid = np.asarray(model.resid, dtype=float)[-RESID_WINDOW:]
             except Exception:
                 p50 = float(s.iloc[-1])  # fall back to RW rather than dropping the series
-                resid = np.diff(s.to_numpy()[-(RESID_WINDOW + 1):])
+                resid = np.diff(s.to_numpy()[-(RESID_WINDOW + 1) :])
         elif len(s):
             p50 = float(s.iloc[-1])
-            resid = np.diff(s.to_numpy()[-(RESID_WINDOW + 1):])
+            resid = np.diff(s.to_numpy()[-(RESID_WINDOW + 1) :])
         if not np.isfinite(p50):
-            rows.append({"city_code": city, "item_code": item, "p10": np.nan,
-                         "p50": np.nan, "p90": np.nan})
+            rows.append(
+                {"city_code": city, "item_code": item, "p10": np.nan, "p50": np.nan, "p90": np.nan}
+            )
             continue
         p10, p90 = _empirical_interval(resid, p50)
         rows.append({"city_code": city, "item_code": item, "p10": p10, "p50": p50, "p90": p90})
     return _pack(rows)
 
 
-def arima(train: pd.DataFrame, target_week: dt.date | None = None,
-          min_obs: int = 20, order_cache: dict | None = None) -> pd.DataFrame:
+def arima(
+    train: pd.DataFrame,
+    target_week: dt.date | None = None,
+    min_obs: int = 20,
+    order_cache: dict | None = None,
+) -> pd.DataFrame:
     """Per-series ARIMA with a small order search, cached per fold.
 
     Slow by nature; orders are cached so a re-fit within the same backtest reuses
@@ -200,13 +212,14 @@ def arima(train: pd.DataFrame, target_week: dt.date | None = None,
                 resid = np.asarray(fit.resid, dtype=float)[-RESID_WINDOW:]
             except Exception:
                 p50 = float(y[-1])
-                resid = np.diff(y[-(RESID_WINDOW + 1):])
+                resid = np.diff(y[-(RESID_WINDOW + 1) :])
         elif len(s):
             p50 = float(s.iloc[-1])
-            resid = np.diff(s.to_numpy()[-(RESID_WINDOW + 1):])
+            resid = np.diff(s.to_numpy()[-(RESID_WINDOW + 1) :])
         if not np.isfinite(p50):
-            rows.append({"city_code": city, "item_code": item, "p10": np.nan,
-                         "p50": np.nan, "p90": np.nan})
+            rows.append(
+                {"city_code": city, "item_code": item, "p10": np.nan, "p50": np.nan, "p90": np.nan}
+            )
             continue
         p10, p90 = _empirical_interval(resid, p50)
         rows.append({"city_code": city, "item_code": item, "p10": p10, "p50": p50, "p90": p90})
@@ -222,4 +235,6 @@ BASELINES = {
     "arima": arima,
 }
 
-FAST_BASELINES = {k: BASELINES[k] for k in ("random_walk", "seasonal_naive", "drift", "seasonal_naive_ma")}
+FAST_BASELINES = {
+    k: BASELINES[k] for k in ("random_walk", "seasonal_naive", "drift", "seasonal_naive_ma")
+}

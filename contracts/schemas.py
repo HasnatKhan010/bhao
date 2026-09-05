@@ -46,7 +46,8 @@ IS_DATE = Check(
 )
 IS_STR_LIST = Check(
     lambda s: s.map(
-        lambda v: isinstance(v, (list, np.ndarray)) and len(v) > 0
+        lambda v: isinstance(v, (list, np.ndarray))
+        and len(v) > 0
         and all(isinstance(x, str) for x in v)
     ),
     name="is_str_list",
@@ -356,7 +357,9 @@ SCHEMAS: dict[str, pa.DataFrameSchema] = {
 # backwards-compatible alias
 ALL_MODELS = SCHEMAS
 
-PANEL_SCHEMAS = {k: SCHEMAS[k] for k in ("prices_weekly", "items", "cities", "national_weekly", "wfp_monthly")}
+PANEL_SCHEMAS = {
+    k: SCHEMAS[k] for k in ("prices_weekly", "items", "cities", "national_weekly", "wfp_monthly")
+}
 FORECAST_SCHEMAS = {k: SCHEMAS[k] for k in ("forecasts", "metrics", "drift")}
 
 

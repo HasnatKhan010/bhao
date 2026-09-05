@@ -76,7 +76,7 @@ class GlobalGBM:
         self.categories: dict[str, list[str]] = {}
         self.gain: pd.Series | None = None
 
-    def fit(self, feats: pd.DataFrame, made_on=None) -> "GlobalGBM":
+    def fit(self, feats: pd.DataFrame, made_on=None) -> GlobalGBM:
         import lightgbm as lgb
 
         # non-positive targets are parse artifacts (log undefined) — never train on them
@@ -85,15 +85,26 @@ class GlobalGBM:
             raise ValueError("no rows with a target: cannot fit")
         self.feature_cols = [c for c in feature_columns(train) if c != "target"]
         X, self.categories = _prep(train[self.feature_cols], CATEGORICAL_COLS)
-        y = np.log(train["target"].to_numpy(dtype=float)) if self.log_target else train["target"].to_numpy(dtype=float)
+        y = (
+            np.log(train["target"].to_numpy(dtype=float))
+            if self.log_target
+            else train["target"].to_numpy(dtype=float)
+        )
         w = recency_weights(train["week_ending"], made_on or train["week_ending"].max())
 
         for name, alpha in QUANTILES.items():
             model = lgb.LGBMRegressor(**{**self.params, "alpha": alpha})
-            model.fit(X, y, sample_weight=w, categorical_feature=[c for c in CATEGORICAL_COLS if c in X.columns])
+            model.fit(
+                X,
+                y,
+                sample_weight=w,
+                categorical_feature=[c for c in CATEGORICAL_COLS if c in X.columns],
+            )
             self.models[name] = model
         p50 = self.models["p50"]
-        self.gain = pd.Series(p50.booster_.feature_importance("gain"), index=X.columns).sort_values(ascending=False)
+        self.gain = pd.Series(p50.booster_.feature_importance("gain"), index=X.columns).sort_values(
+            ascending=False
+        )
         return self
 
     def predict(self, feats: pd.DataFrame) -> pd.DataFrame:
@@ -140,13 +151,14 @@ class GlobalGBM:
                 f,
             )
         (p / "features.json").write_text(
-            json.dumps({"feature_cols": self.feature_cols,
-                        "top_gain": self.top_features(30)}, indent=2),
+            json.dumps(
+                {"feature_cols": self.feature_cols, "top_gain": self.top_features(30)}, indent=2
+            ),
             encoding="utf-8",
         )
 
     @classmethod
-    def load(cls, path) -> "GlobalGBM":
+    def load(cls, path) -> GlobalGBM:
         import pickle
         from pathlib import Path
 

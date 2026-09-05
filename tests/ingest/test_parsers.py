@@ -12,22 +12,54 @@ import datetime as dt
 import io
 
 import numpy as np
+import openpyxl
 import pandas as pd
 import pytest
-import openpyxl
 
 from ingest import validate as vld
 from ingest.normalise import coerce_number, parse_unit, resolve_item
 from ingest.parse_annex import parse_annex
 from ingest.parse_spi import parse_spi
-from ingest.publish import append_week, annex_to_frame, ItemResolver
+from ingest.publish import append_week
 
-CITY_CODES = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10",
-              "11", "12", "13", "14", "15", "16", "17"]
-CITY_NAMES = ["Islamabad", "Rawalpindi", "Gujranwala", "Sialkot", "Lahore",
-              "Faisalabad", "Sargodha", "Multan", "Bahawalpur", "Karachi",
-              "Hyderabad", "Sukkur", "Larkana", "Peshawar", "Bannu", "Quetta",
-              "Khuzdar"]
+CITY_CODES = [
+    "01",
+    "02",
+    "03",
+    "04",
+    "05",
+    "06",
+    "07",
+    "08",
+    "09",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14",
+    "15",
+    "16",
+    "17",
+]
+CITY_NAMES = [
+    "Islamabad",
+    "Rawalpindi",
+    "Gujranwala",
+    "Sialkot",
+    "Lahore",
+    "Faisalabad",
+    "Sargodha",
+    "Multan",
+    "Bahawalpur",
+    "Karachi",
+    "Hyderabad",
+    "Sukkur",
+    "Larkana",
+    "Peshawar",
+    "Bannu",
+    "Quetta",
+    "Khuzdar",
+]
 ITEMS = [
     (1, "Wheat Flour Bag", "20 Kg"),
     (2, "Onions", "1 Kg"),
@@ -45,18 +77,20 @@ def _build_annex_xlsx(with_violation: bool = False, with_dash: bool = True) -> b
     ws.title = "Appendix-A"
     cols = [4, 7, 10, 13, 16, 19, 22]  # D,G,J,M,P,S,V
     blocks = [(0, 7), (7, 14), (14, 17)]  # city index ranges per block
-    for (start, end), head_row in zip(blocks, BLOCK_ROWS):
+    for (start, end), head_row in zip(blocks, BLOCK_ROWS, strict=False):
         for k, ci in enumerate(range(start, end)):
             col = cols[k]
-            cell = ws.cell(row=head_row, column=col, value=f"{CITY_NAMES[ci]} ({CITY_CODES[ci]})")
-            ws.merge_cells(start_row=head_row, start_column=col, end_row=head_row, end_column=col + 2)
-        sub = ws.cell(row=head_row + 1, column=1, value="NO.")
+            ws.cell(row=head_row, column=col, value=f"{CITY_NAMES[ci]} ({CITY_CODES[ci]})")
+            ws.merge_cells(
+                start_row=head_row, start_column=col, end_row=head_row, end_column=col + 2
+            )
+        ws.cell(row=head_row + 1, column=1, value="NO.")
         ws.cell(row=head_row + 1, column=2, value="DESCRIPTION")
         ws.cell(row=head_row + 1, column=3, value="UNIT")
         for j, w in enumerate(["MIN", "AVG", "MAX"] * 7):
             ws.cell(row=head_row + 1, column=4 + j, value=w)
         ws.cell(row=head_row + 2, column=1, value="1")
-        ws.cell(row=head_row + 3, column=4, value=f"PRICES ON 27-08-2026")
+        ws.cell(row=head_row + 3, column=4, value="PRICES ON 27-08-2026")
         r = head_row + 4
         for sr, name, unit in ITEMS:
             ws.cell(row=r, column=1, value=sr)
@@ -66,17 +100,17 @@ def _build_annex_xlsx(with_violation: bool = False, with_dash: bool = True) -> b
                 base = cols[k]
                 avg = 100.0 + 10 * sr + ci
                 if with_violation and sr == 2 and ci == 0:
-                    ws.cell(row=r, column=base, value=999)      # min > avg
+                    ws.cell(row=r, column=base, value=999)  # min > avg
                     ws.cell(row=r, column=base + 1, value=100.0)
                     ws.cell(row=r, column=base + 2, value=110.0)
                     r += 1
                     continue
                 if with_dash and sr == 4 and ci == 3:
-                    ws.cell(row=r, column=base, value="-")       # not surveyed
+                    ws.cell(row=r, column=base, value="-")  # not surveyed
                     ws.cell(row=r, column=base + 1, value="-")
                     ws.cell(row=r, column=base + 2, value="-")
                 elif sr == 1:
-                    ws.cell(row=r, column=base, value="2,200")   # string numbers
+                    ws.cell(row=r, column=base, value="2,200")  # string numbers
                     ws.cell(row=r, column=base + 1, value=" 2,384.15 ")
                     ws.cell(row=r, column=base + 2, value="2800")
                 else:
@@ -128,7 +162,7 @@ def _build_spi_xlsx() -> bytes:
     # section header between sections (must be skipped)
     p2[f"C{r}"] = "ii. Items whose prices decreased"
     r += 1
-    for sr, name, unit, p, pp, ply, wow, yoy in rows:
+    for sr, name, unit, p, *_ in rows:
         p2[f"B{r}"] = sr
         p2[f"C{r}"] = name
         p2[f"D{r}"] = unit
@@ -228,16 +262,30 @@ class TestNormalise:
 
 class TestAppendWeek:
     def _frame(self, week, avg=100.0):
-        return pd.DataFrame([{
-            "week_ending": week, "city_code": "05", "city_en": "Lahore", "city_ur": "لاہور",
-            "item_code": "019", "item_en": "Onions", "item_ur": "پیاز",
-            "unit_raw": "1 Kg", "unit_norm": "kg", "qty_norm": 1.0,
-            "price_min": avg - 2, "price_avg": avg, "price_max": avg + 2,
-            "price_per_unit": avg, "source": "pbs_spi_annex",
-            "source_url": "https://x.example/a.xlsx",
-            "ingested_at": pd.Timestamp("2026-01-10T06:00:00Z"), "revision": 0,
-        }]).astype({"qty_norm": "float64", "revision": "int32",
-                    "ingested_at": "datetime64[us, UTC]"})
+        return pd.DataFrame(
+            [
+                {
+                    "week_ending": week,
+                    "city_code": "05",
+                    "city_en": "Lahore",
+                    "city_ur": "لاہور",
+                    "item_code": "019",
+                    "item_en": "Onions",
+                    "item_ur": "پیاز",
+                    "unit_raw": "1 Kg",
+                    "unit_norm": "kg",
+                    "qty_norm": 1.0,
+                    "price_min": avg - 2,
+                    "price_avg": avg,
+                    "price_max": avg + 2,
+                    "price_per_unit": avg,
+                    "source": "pbs_spi_annex",
+                    "source_url": "https://x.example/a.xlsx",
+                    "ingested_at": pd.Timestamp("2026-01-10T06:00:00Z"),
+                    "revision": 0,
+                }
+            ]
+        ).astype({"qty_norm": "float64", "revision": "int32", "ingested_at": "datetime64[us, UTC]"})
 
     def test_new_week_is_revision_zero(self):
         w1, w2 = dt.date(2026, 1, 1), dt.date(2026, 1, 8)
@@ -270,12 +318,20 @@ class TestValidate:
         frames = []
         for w in weeks:
             for city in ("05", "10"):
-                frames.append({
-                    "week_ending": [w], "city_code": [city], "item_code": ["019"],
-                    "price_avg": [100.0], "revision": [0],
-                })
-        return pd.DataFrame([{k: v for row in frames for k, v in row.items()}]) if not frames else pd.concat(
-            [pd.DataFrame(f) for f in frames], ignore_index=True)
+                frames.append(
+                    {
+                        "week_ending": [w],
+                        "city_code": [city],
+                        "item_code": ["019"],
+                        "price_avg": [100.0],
+                        "revision": [0],
+                    }
+                )
+        return (
+            pd.DataFrame([{k: v for row in frames for k, v in row.items()}])
+            if not frames
+            else pd.concat([pd.DataFrame(f) for f in frames], ignore_index=True)
+        )
 
     def test_week_gap_requires_seven_days(self):
         panel = self._panel([dt.date(2026, 1, 1)])
@@ -290,10 +346,17 @@ class TestValidate:
 
     def test_coverage_collapse_rejected(self):
         panel = self._panel([dt.date(2026, 1, 1)])
-        sparse = pd.DataFrame([{
-            "week_ending": dt.date(2026, 1, 8), "city_code": ["05"], "item_code": ["019"],
-            "price_avg": [np.nan], "revision": 0,
-        }])
+        sparse = pd.DataFrame(
+            [
+                {
+                    "week_ending": dt.date(2026, 1, 8),
+                    "city_code": ["05"],
+                    "item_code": ["019"],
+                    "price_avg": [np.nan],
+                    "revision": 0,
+                }
+            ]
+        )
         with pytest.raises(vld.ValidationError, match="coverage collapse"):
             vld.check_coverage(sparse, panel)
 

@@ -61,7 +61,6 @@ def _now() -> str:
 
 def _candidate_file_urls(prefixes: list[str], week: dt.date, ext: str) -> list[str]:
     """Every prefix × separator combination, in the documented order."""
-    stamp = week.strftime("%d.%m.%Y")
     out = []
     for prefix in prefixes:
         for sep in config.SEPARATORS:
@@ -120,10 +119,13 @@ def _from_sitemap(week: dt.date, session: requests.Session, refs: ReportRefs) ->
 
 
 def _from_constructed_url(week: dt.date, session: requests.Session, refs: ReportRefs) -> bool:
-    post_url = f"{config.PBS_BASE}/{POST_SLUG.format(dd=f'{week.day:02d}', mm=f'{week.month:02d}', yyyy=week.year)}/"
+    slug = POST_SLUG.format(dd=f"{week.day:02d}", mm=f"{week.month:02d}", yyyy=week.year)
+    post_url = f"{config.PBS_BASE}/{slug}/"
     refs.tried.append(post_url)
     try:
-        resp = session.head(post_url, headers={"User-Agent": config.USER_AGENT}, timeout=20, allow_redirects=True)
+        resp = session.head(
+            post_url, headers={"User-Agent": config.USER_AGENT}, timeout=20, allow_redirects=True
+        )
     except requests.RequestException:
         return False
     if resp.status_code != 200:
@@ -134,7 +136,9 @@ def _from_constructed_url(week: dt.date, session: requests.Session, refs: Report
         for url in _candidate_file_urls(prefixes, week, ".xlsx"):
             refs.tried.append(url)
             try:
-                head = session.head(url, headers={"User-Agent": config.USER_AGENT}, timeout=20, allow_redirects=True)
+                head = session.head(
+                    url, headers={"User-Agent": config.USER_AGENT}, timeout=20, allow_redirects=True
+                )
             except requests.RequestException:
                 continue
             if head.status_code == 200:
@@ -179,15 +183,20 @@ def cdx_file_map(session: requests.Session | None = None) -> dict[dt.date, list[
     return out
 
 
-def _from_cdx(week: dt.date, refs: ReportRefs, cdx_map: dict[dt.date, list[tuple[str, str]]] | None = None) -> bool:
+def _from_cdx(
+    week: dt.date, refs: ReportRefs, cdx_map: dict[dt.date, list[tuple[str, str]]] | None = None
+) -> bool:
     entries = cdx_map.get(week) if cdx_map is not None else None
     if entries is None:
-        rows = cdx_query(CDX_PATTERN, extra="collapse=urlkey&limit=5000&filter=original:.*[Aa]nnex.*")
+        rows = cdx_query(
+            CDX_PATTERN, extra="collapse=urlkey&limit=5000&filter=original:.*[Aa]nnex.*"
+        )
         stamp = week.strftime("%d.%m.%Y")
-        entries = [(r["timestamp"], r["original"]) for r in rows
-                   if stamp in r.get("original", "")]
+        entries = [(r["timestamp"], r["original"]) for r in rows if stamp in r.get("original", "")]
     annex = next(((t, u) for t, u in entries if "annex" in u.lower()), None)
-    spi = next(((t, u) for t, u in entries if "spi" in u.lower() and "annex" not in u.lower()), None)
+    spi = next(
+        ((t, u) for t, u in entries if "spi" in u.lower() and "annex" not in u.lower()), None
+    )
     if annex:
         refs.wayback_timestamp, refs.annex_url = annex
         refs.strategy = "wayback_cdx"
@@ -200,8 +209,11 @@ def _from_cdx(week: dt.date, refs: ReportRefs, cdx_map: dict[dt.date, list[tuple
     return bool(refs.annex_url or refs.spi_url)
 
 
-def find_report(week: dt.date, session: requests.Session | None = None,
-                cdx_map: dict[dt.date, list[tuple[str, str]]] | None = None) -> ReportRefs | None:
+def find_report(
+    week: dt.date,
+    session: requests.Session | None = None,
+    cdx_map: dict[dt.date, list[tuple[str, str]]] | None = None,
+) -> ReportRefs | None:
     """Find the SPI report + annex for the week ending `week`. None if not found."""
     s = session or requests.Session()
     s.headers.setdefault("User-Agent", config.USER_AGENT)
@@ -209,13 +221,17 @@ def find_report(week: dt.date, session: requests.Session | None = None,
     for strategy in (_from_sitemap, _from_constructed_url):
         try:
             if strategy(week, s, refs):
-                _log_discovery(week, refs.strategy, refs.spi_url or refs.annex_url or "", "found", refs.tried)
+                _log_discovery(
+                    week, refs.strategy, refs.spi_url or refs.annex_url or "", "found", refs.tried
+                )
                 return refs
         except requests.RequestException:
             continue
     try:
         if _from_cdx(week, refs, cdx_map):
-            _log_discovery(week, refs.strategy, refs.annex_url or refs.spi_url or "", "found", refs.tried)
+            _log_discovery(
+                week, refs.strategy, refs.annex_url or refs.spi_url or "", "found", refs.tried
+            )
             return refs
     except requests.RequestException:
         pass
@@ -257,7 +273,9 @@ def all_known_weeks(session: requests.Session | None = None) -> list[dt.date]:
     except requests.RequestException:
         pass
     try:
-        for row in cdx_query("pbs.gov.pk/weekly-sensitive-price-indicator*", extra="collapse=urlkey&limit=5000"):
+        for row in cdx_query(
+            "pbs.gov.pk/weekly-sensitive-price-indicator*", extra="collapse=urlkey&limit=5000"
+        ):
             m = pat.search(row.get("original", ""))
             if m:
                 weeks.add(dt.date(int(m.group(3)), int(m.group(2)), int(m.group(1))))
@@ -266,7 +284,9 @@ def all_known_weeks(session: requests.Session | None = None) -> list[dt.date]:
     return sorted(weeks)
 
 
-def download_report(refs: ReportRefs, session: requests.Session | None = None) -> dict[str, Path | None]:
+def download_report(
+    refs: ReportRefs, session: requests.Session | None = None
+) -> dict[str, Path | None]:
     """Fetch the report + annex into the cache; returns local paths."""
     out: dict[str, Path | None] = {"spi": None, "annex": None}
     if refs.spi_url:

@@ -30,11 +30,11 @@ KEYS = ["city_code", "item_code"]
 @dataclass
 class RunConfig:
     n_folds: int = 12
-    include_slow: bool = True   # ets + arima
+    include_slow: bool = True  # ets + arima
     include_gbm: bool = True
     log_target: bool = True
     season: int = 52
-    min_train_weeks: int = 8    # per R3: with a short panel, K is reduced, not faked
+    min_train_weeks: int = 8  # per R3: with a short panel, K is reduced, not faked
 
 
 def fold_denominators(train: pd.DataFrame, season: int = 52) -> tuple[pd.Series, pd.Series, int]:
@@ -62,8 +62,13 @@ def fold_denominators(train: pd.DataFrame, season: int = 52) -> tuple[pd.Series,
 
 
 def _score(
-    keys: pd.DataFrame, actual: np.ndarray, p10: np.ndarray, p50: np.ndarray,
-    p90: np.ndarray, dens: pd.Series, dens_rw: pd.Series | None = None,
+    keys: pd.DataFrame,
+    actual: np.ndarray,
+    p10: np.ndarray,
+    p50: np.ndarray,
+    p90: np.ndarray,
+    dens: pd.Series,
+    dens_rw: pd.Series | None = None,
 ) -> dict:
     out = {
         "n_obs": int((np.isfinite(actual) & np.isfinite(p50)).sum()),
@@ -137,12 +142,7 @@ def run_backtest(
             feats = build_features(train, items, national)
             gbm = GlobalGBM(log_target=cfg.log_target).fit(feats, made_on=fold.made_on)
             # predict from the LAST row of each series (made_on's features)
-            last = (
-                feats.sort_values("week_ending")
-                .groupby(KEYS, sort=False)
-                .tail(1)
-                .copy()
-            )
+            last = feats.sort_values("week_ending").groupby(KEYS, sort=False).tail(1).copy()
             gbm_out = gbm.predict(last)
             preds["global_gbm"] = gbm_out[["city_code", "item_code", "p10", "p50", "p90"]]
 
@@ -155,11 +155,22 @@ def run_backtest(
                 continue
             keys = merged[KEYS]
             row = _score(
-                keys, merged["actual"].to_numpy(float), merged["p10"].to_numpy(float),
-                merged["p50"].to_numpy(float), merged["p90"].to_numpy(float), dens, dens_rw,
+                keys,
+                merged["actual"].to_numpy(float),
+                merged["p10"].to_numpy(float),
+                merged["p50"].to_numpy(float),
+                merged["p90"].to_numpy(float),
+                dens,
+                dens_rw,
             )
-            row.update({"fold": fold.index, "model_name": name,
-                        "made_on": fold.made_on, "target_week": fold.target_week})
+            row.update(
+                {
+                    "fold": fold.index,
+                    "model_name": name,
+                    "made_on": fold.made_on,
+                    "target_week": fold.target_week,
+                }
+            )
             per_fold.append(row)
 
             fc = out.copy()
@@ -171,17 +182,24 @@ def run_backtest(
             fc["horizon"] = np.int32(1)
             fc["is_champion"] = name == ("global_gbm" if cfg.include_gbm else "seasonal_naive")
             fc["features_hash"] = [
-                hashlib.sha256(f"{c}|{i}|{fold.made_on}|{FEATURES_VERSION}".encode()).hexdigest()[:16]
-                for c, i in zip(fc["city_code"], fc["item_code"])
+                hashlib.sha256(f"{c}|{i}|{fold.made_on}|{FEATURES_VERSION}".encode()).hexdigest()[
+                    :16
+                ]
+                for c, i in zip(fc["city_code"], fc["item_code"], strict=False)
             ]
             fc["created_at"] = created
             fc_rows.append(fc)
 
         if progress:
-            best = min((r for r in per_fold if r["fold"] == fold.index),
-                       key=lambda r: (r["mase"] if np.isfinite(r["mase"]) else np.inf))
-            print(f"  fold {fold.index:>2} made_on={fold.made_on} best={best['model_name']} "
-                  f"MASE={best['mase']:.3f}", flush=True)
+            best = min(
+                (r for r in per_fold if r["fold"] == fold.index),
+                key=lambda r: (r["mase"] if np.isfinite(r["mase"]) else np.inf),
+            )
+            print(
+                f"  fold {fold.index:>2} made_on={fold.made_on} best={best['model_name']} "
+                f"MASE={best['mase']:.3f}",
+                flush=True,
+            )
 
     forecasts = pd.concat(fc_rows, ignore_index=True) if fc_rows else pd.DataFrame()
     fold_df = pd.DataFrame(per_fold)
@@ -213,10 +231,16 @@ def aggregate_metrics(
     if df.empty:
         return pd.DataFrame()
 
-    cat = (items.set_index("item_code")["category"] if items is not None and len(items)
-           else pd.Series(dtype="object"))
-    admin = (items.set_index("item_code")["is_administered"] if items is not None and len(items)
-             else pd.Series(dtype=bool))
+    cat = (
+        items.set_index("item_code")["category"]
+        if items is not None and len(items)
+        else pd.Series(dtype="object")
+    )
+    admin = (
+        items.set_index("item_code")["is_administered"]
+        if items is not None and len(items)
+        else pd.Series(dtype=bool)
+    )
     df["category"] = df["item_code"].map(cat).fillna("other")
     df["is_administered"] = df["item_code"].map(admin).fillna(False)
 
@@ -230,28 +254,47 @@ def aggregate_metrics(
         dens, dens_rw, _ = fold_denominators(latest_revision(train), season)
         version = sub["model_version"].iloc[0]
 
-        def emit(scope, part, city=None, item=None):
+        ctx = (dens, dens_rw, target_week, model_name, version)
+
+        def emit(scope, part, city=None, item=None, *, _ctx=ctx):
             if part.empty:
                 return
+            _dens, _dens_rw, _tw, _mn, _v = _ctx  # binds the loop iteration explicitly
             s = _score(
-                part[KEYS], part["actual"].to_numpy(float), part["p10"].to_numpy(float),
-                part["p50"].to_numpy(float), part["p90"].to_numpy(float), dens, dens_rw,
+                part[KEYS],
+                part["actual"].to_numpy(float),
+                part["p10"].to_numpy(float),
+                part["p50"].to_numpy(float),
+                part["p90"].to_numpy(float),
+                _dens,
+                _dens_rw,
             )
-            rows.append({
-                "run_id": run_id, "evaluated_on": evaluated_on, "target_week": target_week,
-                "model_name": model_name, "model_version": version, "scope": scope,
-                "city_code": city, "item_code": item, "is_backtest": is_backtest,
-                **{k: (None if isinstance(v, float) and not np.isfinite(v) else v)
-                   for k, v in s.items() if k != "n_obs"},
-                "n_obs": np.int32(s["n_obs"]),
-            })
+            rows.append(
+                {
+                    "run_id": run_id,
+                    "evaluated_on": evaluated_on,
+                    "target_week": _tw,
+                    "model_name": _mn,
+                    "model_version": _v,
+                    "scope": scope,
+                    "city_code": city,
+                    "item_code": item,
+                    "is_backtest": is_backtest,
+                    **{
+                        k: (None if isinstance(v, float) and not np.isfinite(v) else v)
+                        for k, v in s.items()
+                        if k != "n_obs"
+                    },
+                    "n_obs": np.int32(s["n_obs"]),
+                }
+            )
 
         emit("overall", sub)
         for city, part in sub.groupby("city_code"):
             emit("city", part, city=city)
         for item, part in sub.groupby("item_code"):
             emit("item", part, item=item)
-        for c, part in sub.groupby("category"):
+        for _cat, part in sub.groupby("category"):
             emit("category", part)
         emit("administered", sub[sub["is_administered"]])
 
@@ -259,15 +302,26 @@ def aggregate_metrics(
     if out.empty:
         return out
     out["n_obs"] = out["n_obs"].astype("int32")
-    for c in ("mase", "mase_rw", "smape", "mae", "rmse", "pinball_10", "pinball_50",
-              "pinball_90", "coverage_80", "bias"):
+    for c in (
+        "mase",
+        "mase_rw",
+        "smape",
+        "mae",
+        "rmse",
+        "pinball_10",
+        "pinball_50",
+        "pinball_90",
+        "coverage_80",
+        "bias",
+    ):
         if c in out.columns:
             out[c] = out[c].astype("float64")
     return out
 
 
-def beat_seasonal_naive_pct(forecasts: pd.DataFrame, panel: pd.DataFrame,
-                            model_name: str = "global_gbm") -> float:
+def beat_seasonal_naive_pct(
+    forecasts: pd.DataFrame, panel: pd.DataFrame, model_name: str = "global_gbm"
+) -> float:
     """Fraction of series where `model_name` beats seasonal_naive on MAE.
 
     The anti-averaging metric: an overall MASE of 0.78 driven by 20 series while
@@ -283,8 +337,9 @@ def beat_seasonal_naive_pct(forecasts: pd.DataFrame, panel: pd.DataFrame,
     b = df[df["model_name"] == "seasonal_naive"]
     if a.empty or b.empty:
         return float("nan")
-    return M.beat_pct(a[KEYS], (a["actual"] - a["p50"]).to_numpy(),
-                      b[KEYS], (b["actual"] - b["p50"]).to_numpy())
+    return M.beat_pct(
+        a[KEYS], (a["actual"] - a["p50"]).to_numpy(), b[KEYS], (b["actual"] - b["p50"]).to_numpy()
+    )
 
 
 def baseline_table(fold_df: pd.DataFrame) -> pd.DataFrame:

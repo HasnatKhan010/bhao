@@ -94,7 +94,5 @@ CITY_CODES = [f"{i:02d}" for i in range(0, 18)]
 def validate(member_set: set[str], value: str, what: str) -> str:
     """Raise a loud error for an unrecognised enum value. Never default silently."""
     if value not in member_set:
-        raise ValueError(
-            f"unrecognised {what} {value!r}; expected one of {sorted(member_set)}"
-        )
+        raise ValueError(f"unrecognised {what} {value!r}; expected one of {sorted(member_set)}")
     return value

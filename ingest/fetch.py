@@ -119,7 +119,12 @@ def _store(url: str, resp: requests.Response) -> Fetched:
 
 
 def _get_with_retries(
-    s: requests.Session, url: str, bucket: TokenBucket, max_retries: int, base_backoff: float, timeout: int
+    s: requests.Session,
+    url: str,
+    bucket: TokenBucket,
+    max_retries: int,
+    base_backoff: float,
+    timeout: int,
 ) -> requests.Response | None:
     """GET with exponential backoff on 5xx/429/timeout. Returns None on final 404.
     A 404 is never retried — it is information (the prefix table)."""
@@ -191,7 +196,7 @@ def cdx_query(url_pattern: str, extra: str = "collapse=urlkey&limit=5000") -> li
     if not rows:
         return []
     header = rows[0]
-    return [dict(zip(header, r)) for r in rows[1:]]
+    return [dict(zip(header, r, strict=False)) for r in rows[1:]]
 
 
 def manifest_stats() -> dict:

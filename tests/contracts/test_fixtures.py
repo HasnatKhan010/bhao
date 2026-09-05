@@ -19,7 +19,6 @@ from contracts.fixtures.make_fixtures import (
     ADMIN_STEP_PCT,
     ADMIN_STEP_WEEK,
     FIRST_WEEK,
-    LAST_WEEK,
     MISSING_CITY,
     MISSING_CITY_WEEKS,
     RAGGED_CODES,
@@ -32,7 +31,7 @@ from contracts.fixtures.make_fixtures import (
     WEEKS,
     generate_all,
 )
-from contracts.schemas import ALL_MODELS, as_of, latest_revision
+from contracts.schemas import ALL_MODELS, as_of
 
 
 @pytest.fixture(scope="module")
@@ -91,8 +90,11 @@ class TestPathologies:
 
     def test_5a_revision_rows_exist_and_differ(self, panel):
         wk, city, item = REVISION_KEY
-        sub = panel[(panel["week_ending"] == wk) & (panel["city_code"] == city)
-                    & (panel["item_code"] == item)]
+        sub = panel[
+            (panel["week_ending"] == wk)
+            & (panel["city_code"] == city)
+            & (panel["item_code"] == item)
+        ]
         assert sorted(sub["revision"].tolist()) == [0, 1]
         r0 = sub[sub["revision"] == 0]["price_avg"].iloc[0]
         r1 = sub[sub["revision"] == 1]["price_avg"].iloc[0]
@@ -104,10 +106,12 @@ class TestPathologies:
         rev1_date = dt.date(2026, 8, 23)  # revision ingested 2026-08-24 UTC
         before = as_of(panel, dt.date(2026, 8, 22))
         after = as_of(panel, dt.date(2026, 8, 25))
-        b = before[(before[key[0]] == wk) & (before["city_code"] == city)
-                   & (before["item_code"] == item)]
-        a = after[(after[key[0]] == wk) & (after["city_code"] == city)
-                  & (after["item_code"] == item)]
+        b = before[
+            (before[key[0]] == wk) & (before["city_code"] == city) & (before["item_code"] == item)
+        ]
+        a = after[
+            (after[key[0]] == wk) & (after["city_code"] == city) & (after["item_code"] == item)
+        ]
         assert int(b["revision"].iloc[0]) == 0
         assert int(a["revision"].iloc[0]) == 1
         assert rev1_date > dt.date(2026, 8, 22)
@@ -120,8 +124,8 @@ class TestPathologies:
         step_i = np.where(weeks == WEEKS[ADMIN_STEP_WEEK])[0][0]
         # flat 20 weeks either side (NaN-tolerant: the missing-cells pathology also
         # nulls a few of these rows — that is pathology 2 doing its job)
-        pre = avgs[step_i - 20:step_i]
-        post = avgs[step_i:step_i + 20]
+        pre = avgs[step_i - 20 : step_i]
+        post = avgs[step_i : step_i + 20]
         assert np.allclose(pre[~np.isnan(pre)], pre[~np.isnan(pre)][0])
         assert np.allclose(post[~np.isnan(post)], post[~np.isnan(post)][0])
         ratio = post[~np.isnan(post)][0] / pre[~np.isnan(pre)][0]
@@ -164,8 +168,12 @@ class TestPanelInvariants:
 
     def test_min_le_avg_le_max_where_present(self, panel):
         p = panel
-        ok = ~((p["price_min"].notna()) & (p["price_avg"].notna()) & (p["price_min"] > p["price_avg"]))
-        ok &= ~((p["price_max"].notna()) & (p["price_avg"].notna()) & (p["price_max"] < p["price_avg"]))
+        ok = ~(
+            (p["price_min"].notna()) & (p["price_avg"].notna()) & (p["price_min"] > p["price_avg"])
+        )
+        ok &= ~(
+            (p["price_max"].notna()) & (p["price_avg"].notna()) & (p["price_max"] < p["price_avg"])
+        )
         assert ok.all()
 
     def test_weeks_are_thursdays(self, panel):

@@ -40,8 +40,14 @@ def load_panel_items_national(data_dir=None) -> tuple[pd.DataFrame, pd.DataFrame
     return panel, items, nat
 
 
-def make_registry(gbm: bool, summary: dict, table: pd.DataFrame, champ_mase_vs,
-                  force_champion: str | None = None, version: str | None = None) -> dict:
+def make_registry(
+    gbm: bool,
+    summary: dict,
+    table: pd.DataFrame,
+    champ_mase_vs,
+    force_champion: str | None = None,
+    version: str | None = None,
+) -> dict:
     version = version or f"gbm-v{1 + (config.REGISTRY_DIR / 'model_registry.json').exists() * 1}"
     trained_through = summary.get("trained_through")
     # champion decision:
@@ -69,13 +75,25 @@ def make_registry(gbm: bool, summary: dict, table: pd.DataFrame, champ_mase_vs,
                 "backtest": {
                     "folds": int(summary.get("folds", 0)),
                     "mase": float(table.loc[champion, "mase"]) if champion in table.index else None,
-                    "mase_rw": float(table.loc[champion, "mase_rw"]) if champion in table.index and "mase_rw" in table.columns else None,
-                    "smape": float(table.loc[champion, "smape"]) if champion in table.index else None,
-                    "coverage_80": float(table.loc[champion, "coverage_80"]) if champion in table.index else None,
+                    "mase_rw": (
+                        float(table.loc[champion, "mase_rw"])
+                        if champion in table.index and "mase_rw" in table.columns
+                        else None
+                    ),
+                    "smape": (
+                        float(table.loc[champion, "smape"]) if champion in table.index else None
+                    ),
+                    "coverage_80": (
+                        float(table.loc[champion, "coverage_80"])
+                        if champion in table.index
+                        else None
+                    ),
                     "beat_seasonal_naive_pct_of_series": champ_mase_vs,
                 },
                 "artefact_path": "data/registry/artefacts/",
-                "artefact_sha256": hashlib.sha256(f"{version}-{dt.datetime.now(dt.UTC).isoformat()}".encode()).hexdigest(),
+                "artefact_sha256": hashlib.sha256(
+                    f"{version}-{dt.datetime.now(dt.UTC).isoformat()}".encode()
+                ).hexdigest(),
                 "promoted_at": dt.datetime.now(dt.UTC).isoformat(timespec="seconds"),
                 "promoted_because": (
                     f"Champion after backtest: MASE {table.loc[champion, 'mase']:.3f} over "
@@ -89,8 +107,9 @@ def make_registry(gbm: bool, summary: dict, table: pd.DataFrame, champ_mase_vs,
     }
 
 
-def write_runtime_artefacts(panel, items, nat, n_folds=12, include_slow=True,
-                            include_gbm=True, log_target=True, run_id=None) -> dict:
+def write_runtime_artefacts(
+    panel, items, nat, n_folds=12, include_slow=True, include_gbm=True, log_target=True, run_id=None
+) -> dict:
     """Run the real backtest and write forecasts/metrics/registry. Returns summary.
 
     Per-series ARIMA order search is expensive (~3,500 fits on the first fold
@@ -102,16 +121,28 @@ def write_runtime_artefacts(panel, items, nat, n_folds=12, include_slow=True,
     config.ensure_dirs()
     panel = panel.copy()
     fc, folds, summary = run_backtest(
-        panel, items, nat,
-        cfg=RunConfig(n_folds=n_folds, include_slow=include_slow,
-                      include_gbm=include_gbm, log_target=log_target),
-        run_id=run_id, progress=True,
+        panel,
+        items,
+        nat,
+        cfg=RunConfig(
+            n_folds=n_folds,
+            include_slow=include_slow,
+            include_gbm=include_gbm,
+            log_target=log_target,
+        ),
+        run_id=run_id,
+        progress=True,
     )
     table = baseline_table(folds)
     champ_win = beat_seasonal_naive_pct(fc, panel) if include_gbm else float("nan")
 
-    metrics = aggregate_metrics(fc, panel, items, summary["run_id"],
-                                season=summary.get("effective_season", summary.get("season_used", 4)))
+    metrics = aggregate_metrics(
+        fc,
+        panel,
+        items,
+        summary["run_id"],
+        season=summary.get("effective_season", summary.get("season_used", 4)),
+    )
     fc.to_parquet(config.FORECASTS_DIR / "forecasts.parquet", index=False)
     metrics.to_parquet(config.FORECASTS_DIR / "metrics.parquet", index=False)
 
@@ -123,16 +154,24 @@ def write_runtime_artefacts(panel, items, nat, n_folds=12, include_slow=True,
     scored = table.dropna(subset=["mase"])
     scored = scored[np.isfinite(scored["mase"])]
     champion = str(scored["mase"].idxmin())
-    runner_up = scored.drop(index=champion)["mase"].idxmin() if len(scored) > 1 else None
     gbm_mase = float(table.loc["global_gbm", "mase"]) if "global_gbm" in table.index else None
-    rw_mase = float(table.loc["random_walk", "mase"]) if "random_walk" in table.index else None
-    reg = make_registry(include_gbm, {**summary, "n_series": panel.groupby(["city_code", "item_code"]).ngroups,
-                                      "n_rows": len(panel),
-                                      "trained_through": sorted(set(pd.to_datetime(panel["week_ending"]).dt.date))[-1]},
-                        table, champ_win, force_champion=champion)
+    reg = make_registry(
+        include_gbm,
+        {
+            **summary,
+            "n_series": panel.groupby(["city_code", "item_code"]).ngroups,
+            "n_rows": len(panel),
+            "trained_through": sorted(set(pd.to_datetime(panel["week_ending"]).dt.date))[-1],
+        },
+        table,
+        champ_win,
+        force_champion=champion,
+    )
     reason = (
-        f"Champion after the backtest: {champion} MASE {table.loc[champion, 'mase']:.3f} over "
-        f"{int(summary.get('folds', 0))} rolling-origin folds of the {summary.get('effective_season', 4)}-week panel."
+        f"Champion after the backtest: {champion} MASE "
+        f"{table.loc[champion, 'mase']:.3f} over "
+        f"{int(summary.get('folds', 0))} rolling-origin folds of the "
+        f"{summary.get('effective_season', 4)}-week panel."
     )
     if champion == "random_walk" and gbm_mase is not None:
         reason += (
@@ -141,20 +180,28 @@ def write_runtime_artefacts(panel, items, nat, n_folds=12, include_slow=True,
             f"week as the panel deepens; the per-commodity table shows where it does win."
         )
     reg["models"][0]["promoted_because"] = reason
-    reg["promotion_log"].append({
-        "at": reg["updated_at"],
-        "from": None,
-        "to": champion,
-        "decision": "promote",
-        "reason": reason,
-        "trigger": f"backtest {summary.get('run_id')}",
-    })
+    reg["promotion_log"].append(
+        {
+            "at": reg["updated_at"],
+            "from": None,
+            "to": champion,
+            "decision": "promote",
+            "reason": reason,
+            "trigger": f"backtest {summary.get('run_id')}",
+        }
+    )
     (config.REGISTRY_DIR / "model_registry.json").write_text(
-        json.dumps(reg, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        json.dumps(reg, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
     print("\nBASELINE TABLE:", table.to_string())
     print(f"\nchampion: {champion} | beat_seasonal_naive_pct: {champ_win}")
-    return {"forecast_rows": len(fc), "metric_rows": len(metrics), "champion": champion,
-            "table": table, "summary": summary}
+    return {
+        "forecast_rows": len(fc),
+        "metric_rows": len(metrics),
+        "champion": champion,
+        "table": table,
+        "summary": summary,
+    }
 
 
 if __name__ == "__main__":

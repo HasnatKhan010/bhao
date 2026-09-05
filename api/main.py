@@ -14,7 +14,7 @@ import time
 from collections import defaultdict, deque
 
 import pandas as pd
-from fastapi import FastAPI, Query, Request, Response
+from fastapi import FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 
@@ -50,7 +50,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # public data; GET only
+    allow_origins=["*"],  # public data; GET only
     allow_methods=["GET", "OPTIONS"],
     allow_headers=["*"],
 )
@@ -77,9 +77,7 @@ async def _api_error(_: Request, exc: ApiError):
 async def _missing_data(_: Request, exc: FileNotFoundError):
     return JSONResponse(
         status_code=503,
-        content=ErrorResponse(
-            error=ErrorBody(code="INTERNAL", message=str(exc))
-        ).model_dump(),
+        content=ErrorResponse(error=ErrorBody(code="INTERNAL", message=str(exc))).model_dump(),
     )
 
 
@@ -114,7 +112,7 @@ async def _cache_and_limit(request: Request, call_next):
         _rate_limit(request, "json", S.RATE_LIMIT_JSON)
     try:
         response = await call_next(request)
-    except ApiError as exc:                       # raised inside the middleware chain
+    except ApiError as exc:  # raised inside the middleware chain
         return await _api_error(request, exc)
     if path.startswith("/api/") and path != "/api/health":
         response.headers.setdefault("Cache-Control", f"public, max-age={S.CACHE_TTL_SECONDS}")
@@ -207,7 +205,8 @@ def items(
         params.append(category)
     if city_code:
         where.append(
-            f"i.item_code IN (SELECT DISTINCT item_code FROM {st.scan('prices_weekly')} WHERE city_code = ?)"
+            "i.item_code IN (SELECT DISTINCT item_code FROM "
+            f"{st.scan('prices_weekly')} WHERE city_code = ?)"
         )
         params.append(city_code)
     clause = f"WHERE {' AND '.join(where)}" if where else ""
@@ -218,8 +217,12 @@ def items(
         params,
     )
     if city_code and df.empty:
-        raise ApiError("CITY_NOT_FOUND", f"no items surveyed for city {city_code}",
-                       status=404, city_code=city_code)
+        raise ApiError(
+            "CITY_NOT_FOUND",
+            f"no items surveyed for city {city_code}",
+            status=404,
+            city_code=city_code,
+        )
     return ListResponse[Item](data=[Item(**r) for r in df.to_dict("records")], meta=_meta())
 
 
@@ -232,9 +235,12 @@ def prices(
     limit: int = Query(1000, ge=1, le=20000),
 ):
     st = S.store()
-    where, params = ["revision = (SELECT max(revision) FROM " + st.scan("prices_weekly") +
-                     " x WHERE x.week_ending = p.week_ending AND x.city_code = p.city_code"
-                     " AND x.item_code = p.item_code)"], []
+    where, params = [
+        "revision = (SELECT max(revision) FROM "
+        + st.scan("prices_weekly")
+        + " x WHERE x.week_ending = p.week_ending AND x.city_code = p.city_code"
+        " AND x.item_code = p.item_code)"
+    ], []
     if city_code:
         where.append("p.city_code = ?")
         params.append(city_code)
@@ -257,16 +263,24 @@ def prices(
     )
     if df.empty:
         raise ApiError(
-            "NO_DATA_FOR_RANGE", "no rows match that city/item/date range", status=404,
-            city_code=city_code, item_code=item_code,
-            **({"from": str(from_)} if from_ else {}), **({"to": str(to)} if to else {}),
+            "NO_DATA_FOR_RANGE",
+            "no rows match that city/item/date range",
+            status=404,
+            city_code=city_code,
+            item_code=item_code,
+            **({"from": str(from_)} if from_ else {}),
+            **({"to": str(to)} if to else {}),
         )
     rows = [
         PricePoint(
-            week_ending=_as_date(r["week_ending"]), city_code=r["city_code"],
-            item_code=r["item_code"], price_min=_f(r["price_min"]),
-            price_avg=_f(r["price_avg"]), price_max=_f(r["price_max"]),
-            price_per_unit=_f(r["price_per_unit"]), revision=int(r["revision"]),
+            week_ending=_as_date(r["week_ending"]),
+            city_code=r["city_code"],
+            item_code=r["item_code"],
+            price_min=_f(r["price_min"]),
+            price_avg=_f(r["price_avg"]),
+            price_max=_f(r["price_max"]),
+            price_per_unit=_f(r["price_per_unit"]),
+            revision=int(r["revision"]),
             source_url=r["source_url"],
         )
         for r in df.to_dict("records")
@@ -286,7 +300,6 @@ def _recent_error(st: S.Store, city_code: str, item_code: str, n_weeks: int = 8)
     if not st.has("metrics"):
         return RecentError(mase=None, mase_rw=None, mae=None, n_weeks=0)
     cols = {c.lower() for c in st.df(f"SELECT * FROM {st.scan('metrics')} LIMIT 0").columns}
-    mase_rw = "mase_rw" if "mase_rw" in cols else "NULL AS mase_rw"
     df = st.df(
         f"""SELECT avg(mase) AS mase, avg({'mase_rw' if 'mase_rw' in cols else 'NULL'}) AS mase_rw,
                    avg(mae) AS mae, count(*) AS n
@@ -297,7 +310,8 @@ def _recent_error(st: S.Store, city_code: str, item_code: str, n_weeks: int = 8)
     row = df.iloc[0] if len(df) else None
     if row is None or not row["n"]:
         df = st.df(
-            f"""SELECT avg(mase) AS mase, avg({'mase_rw' if 'mase_rw' in cols else 'NULL'}) AS mase_rw,
+            f"""SELECT avg(mase) AS mase, avg({'mase_rw' if 'mase_rw' in cols else 'NULL'}) AS
+                    mase_rw,
                        avg(mae) AS mae, count(*) AS n
                 FROM {st.scan('metrics')} WHERE scope = 'overall'"""
         )
@@ -305,13 +319,16 @@ def _recent_error(st: S.Store, city_code: str, item_code: str, n_weeks: int = 8)
     if row is None:
         return RecentError(mase=None, mase_rw=None, mae=None, n_weeks=0)
     return RecentError(
-        mase=_f(row["mase"]), mase_rw=_f(row["mase_rw"]),
-        mae=_f(row["mae"]), n_weeks=int(row["n"] or 0),
+        mase=_f(row["mase"]),
+        mase_rw=_f(row["mase_rw"]),
+        mae=_f(row["mae"]),
+        n_weeks=int(row["n"] or 0),
     )
 
 
-def _direction(expected_change: float | None, recent_mae: float | None,
-               series_mae: float | None) -> str:
+def _direction(
+    expected_change: float | None, recent_mae: float | None, series_mae: float | None
+) -> str:
     """up / down / flat, decided against the series' OWN recent error — not a fixed
     percentage. A 0.4% "rise" on a series that routinely moves 3% is not a rise, and
     calling it one would be the same dishonesty as a faked search result.
@@ -338,10 +355,12 @@ def forecast(city_code: str, item_code: str, history_weeks: int = Query(52, ge=4
     if labels.empty:
         exists_city = st.sql(f"SELECT 1 FROM {st.scan('cities')} WHERE city_code = ?", [city_code])
         if not exists_city:
-            raise ApiError("CITY_NOT_FOUND", f"unknown city {city_code}", status=404,
-                           city_code=city_code)
-        raise ApiError("ITEM_NOT_FOUND", f"unknown item {item_code}", status=404,
-                       item_code=item_code)
+            raise ApiError(
+                "CITY_NOT_FOUND", f"unknown city {city_code}", status=404, city_code=city_code
+            )
+        raise ApiError(
+            "ITEM_NOT_FOUND", f"unknown item {item_code}", status=404, item_code=item_code
+        )
     lab = labels.iloc[0]
 
     hist = st.df(
@@ -390,13 +409,23 @@ def forecast(city_code: str, item_code: str, history_weeks: int = Query(52, ge=4
     pct = (expected / last_actual * 100) if (expected is not None and last_actual) else None
 
     return Forecast(
-        city_code=city_code, item_code=item_code,
-        city_en=lab["city_en"], city_ur=lab["city_ur"],
-        item_en=lab["item_en"], item_ur=lab["item_ur"], unit_raw=lab["unit_raw"],
-        target_week=target_week, p10=p10, p50=p50, p90=p90,
-        last_actual=last_actual, last_actual_week=last_week,
+        city_code=city_code,
+        item_code=item_code,
+        city_en=lab["city_en"],
+        city_ur=lab["city_ur"],
+        item_en=lab["item_en"],
+        item_ur=lab["item_ur"],
+        unit_raw=lab["unit_raw"],
+        target_week=target_week,
+        p10=p10,
+        p50=p50,
+        p90=p90,
+        last_actual=last_actual,
+        last_actual_week=last_week,
         direction=_direction(expected, err.mae, series_mae),
-        pct_change_expected=_f(pct), model_version=model_version, made_on=made_on,
+        pct_change_expected=_f(pct),
+        model_version=model_version,
+        made_on=made_on,
         history=[
             HistoryPoint(week_ending=_as_date(r["week_ending"]), price_avg=_f(r["price_avg"]))
             for r in hist.to_dict("records")
@@ -414,13 +443,19 @@ def movers(
 ):
     st = S.store()
     weeks = st.sql(
-        f"SELECT DISTINCT week_ending FROM {st.scan('prices_weekly')} ORDER BY week_ending DESC LIMIT {window + 1}"
+        f"SELECT DISTINCT week_ending FROM {st.scan('prices_weekly')} "
+        f"ORDER BY week_ending DESC LIMIT {window + 1}"
     )
     if len(weeks) < 2:
         raise ApiError("NO_DATA_FOR_RANGE", "panel has fewer than two weeks", status=404)
     latest, earlier = weeks[0][0], weeks[-1][0]
     scope = "AND city_code = ?" if city_code else ""
-    params = [latest] + ([city_code] if city_code else []) + [earlier] + ([city_code] if city_code else [])
+    params = (
+        [latest]
+        + ([city_code] if city_code else [])
+        + [earlier]
+        + ([city_code] if city_code else [])
+    )
     df = st.df(
         f"""WITH cur AS (
                 SELECT item_code, avg(price_avg) AS p FROM {st.scan('prices_weekly')}
@@ -443,8 +478,14 @@ def movers(
     else:
         df = pd.concat([df.head(limit), df.tail(limit)]).drop_duplicates("item_code")
     rows = [
-        Mover(item_code=r["item_code"], item_en=r["item_en"], item_ur=r["item_ur"],
-              price_avg=_f(r["price_avg"]), pct_change=_f(r["pct_change"]), rank=i + 1)
+        Mover(
+            item_code=r["item_code"],
+            item_en=r["item_en"],
+            item_ur=r["item_ur"],
+            price_avg=_f(r["price_avg"]),
+            pct_change=_f(r["pct_change"]),
+            rank=i + 1,
+        )
         for i, r in enumerate(df.to_dict("records"))
     ]
     return ListResponse[Mover](data=rows, meta=_meta())
@@ -482,11 +523,19 @@ def scorecard(
     )
     rows = [
         ScorecardRow(
-            target_week=_as_date(r["target_week"]), model_name=r["model_name"],
-            scope=r["scope"], city_code=r.get("city_code"), item_code=r.get("item_code"),
-            mase=_f(r["mase"]), mase_rw=_f(r.get("mase_rw")), smape=_f(r["smape"]),
-            mae=_f(r["mae"]), coverage_80=_f(r["coverage_80"]), bias=_f(r["bias"]),
-            n_obs=int(r["n_obs"]), is_backtest=bool(r["is_backtest"]),
+            target_week=_as_date(r["target_week"]),
+            model_name=r["model_name"],
+            scope=r["scope"],
+            city_code=r.get("city_code"),
+            item_code=r.get("item_code"),
+            mase=_f(r["mase"]),
+            mase_rw=_f(r.get("mase_rw")),
+            smape=_f(r["smape"]),
+            mae=_f(r["mae"]),
+            coverage_80=_f(r["coverage_80"]),
+            bias=_f(r["bias"]),
+            n_obs=int(r["n_obs"]),
+            is_backtest=bool(r["is_backtest"]),
         )
         for r in df.to_dict("records")
     ]
@@ -494,8 +543,11 @@ def scorecard(
 
 
 @app.get("/api/drift", response_model=ListResponse[DriftRow], tags=["accuracy"])
-def drift(since: dt.date | None = None, severity: str | None = None,
-          limit: int = Query(200, ge=1, le=2000)):
+def drift(
+    since: dt.date | None = None,
+    severity: str | None = None,
+    limit: int = Query(200, ge=1, le=2000),
+):
     st = S.store()
     if not st.has("drift"):
         return ListResponse[DriftRow](data=[], meta=_meta())
@@ -515,9 +567,15 @@ def drift(since: dt.date | None = None, severity: str | None = None,
     )
     rows = [
         DriftRow(
-            checked_on=_as_date(r["checked_on"]), channel=r["channel"], subject=r["subject"],
-            test=r["test"], statistic=_f(r["statistic"]), threshold=_f(r["threshold"]),
-            fired=bool(r["fired"]), severity=r["severity"], note=r["note"],
+            checked_on=_as_date(r["checked_on"]),
+            channel=r["channel"],
+            subject=r["subject"],
+            test=r["test"],
+            statistic=_f(r["statistic"]),
+            threshold=_f(r["threshold"]),
+            fired=bool(r["fired"]),
+            severity=r["severity"],
+            note=r["note"],
         )
         for r in df.to_dict("records")
     ]

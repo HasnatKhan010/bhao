@@ -26,8 +26,13 @@ DEFAULT_PATH = Path("data/registry/model_registry.json")
 
 def load(path: Path = DEFAULT_PATH) -> dict:
     if not path.exists():
-        return {"schema_version": 1, "models": [], "promotion_log": [],
-                "champion": None, "updated_at": None}
+        return {
+            "schema_version": 1,
+            "models": [],
+            "promotion_log": [],
+            "champion": None,
+            "updated_at": None,
+        }
     return json.loads(path.read_text(encoding="utf-8"))
 
 
@@ -37,8 +42,11 @@ def save(reg: dict, path: Path = DEFAULT_PATH) -> None:
 
 
 def evaluate_promotion(
-    challenger: dict, champion: dict | None, category_metrics: dict[str, float],
-    champion_win_pct: float | None, challenger_win_pct: float | None,
+    challenger: dict,
+    champion: dict | None,
+    category_metrics: dict[str, float],
+    champion_win_pct: float | None,
+    challenger_win_pct: float | None,
 ) -> tuple[str, list[str]]:
     """The five-condition gate. Returns (decision, reasons).
 
@@ -59,8 +67,8 @@ def evaluate_promotion(
         reasons.append(
             f"challenger MASE {chall_mase:.3f} vs champion {champ_mase:.3f} "
             f"({rel * 100:.1f}% better) is under the {T.PROMOTE_MIN_RELATIVE_IMPROVEMENT:.0%} gate."
-            if rel is not None and rel >= 0 else
-            f"challenger MASE {chall_mase:.3f} is worse than champion {champ_mase:.3f}."
+            if rel is not None and rel >= 0
+            else f"challenger MASE {chall_mase:.3f} is worse than champion {champ_mase:.3f}."
         )
 
     # 2. no category regresses by > 10% relative
@@ -97,16 +105,24 @@ def evaluate_promotion(
     return ("keep" if reasons else "promote"), reasons
 
 
-def log_decision(reg: dict, decision: str, challenger_version: str, reason: str,
-                 trigger: str, from_version: str | None) -> dict:
-    reg.setdefault("promotion_log", []).append({
-        "at": dt.datetime.now(dt.UTC).isoformat(timespec="seconds"),
-        "from": from_version,
-        "to": challenger_version,
-        "decision": decision,
-        "reason": reason,
-        "trigger": trigger,
-    })
+def log_decision(
+    reg: dict,
+    decision: str,
+    challenger_version: str,
+    reason: str,
+    trigger: str,
+    from_version: str | None,
+) -> dict:
+    reg.setdefault("promotion_log", []).append(
+        {
+            "at": dt.datetime.now(dt.UTC).isoformat(timespec="seconds"),
+            "from": from_version,
+            "to": challenger_version,
+            "decision": decision,
+            "reason": reason,
+            "trigger": trigger,
+        }
+    )
     return reg
 
 

@@ -11,13 +11,11 @@ Business rules beyond the schema:
 
 from __future__ import annotations
 
-import csv
 import datetime as dt
 
-import numpy as np
 import pandas as pd
 
-from contracts.schemas import SCHEMAS, validate_frame
+from contracts.schemas import validate_frame
 from ingest import config
 
 
@@ -39,7 +37,9 @@ def check_week_gap(new_week: dt.date, panel: pd.DataFrame, skip: bool = False) -
     if new_week == prev:
         return  # re-ingest of the current week: append_week makes it a no-op
     if (new_week - prev).days != 7:
-        raise ValidationError(f"week gap: {new_week} is {(new_week - prev).days} days after {prev}, expected 7")
+        raise ValidationError(
+            f"week gap: {new_week} is {(new_week - prev).days} days after {prev}, expected 7"
+        )
 
 
 def check_coverage(new_prices: pd.DataFrame, panel: pd.DataFrame, tolerance: float = 0.20) -> None:
@@ -50,7 +50,9 @@ def check_coverage(new_prices: pd.DataFrame, panel: pd.DataFrame, tolerance: flo
     if not weeks:
         return
     prev_week = weeks[-1]
-    prev_n = int(panel[pd.to_datetime(panel["week_ending"]).dt.date == prev_week]["price_avg"].notna().sum())
+    prev_n = int(
+        panel[pd.to_datetime(panel["week_ending"]).dt.date == prev_week]["price_avg"].notna().sum()
+    )
     new_n = int(new_prices["price_avg"].notna().sum())
     if prev_n == 0:
         return
@@ -119,7 +121,9 @@ def national_crosscheck(
             continue
         gap = abs(cm - nat) / nat
         if gap > tolerance:
-            violations.append(f"item {code}: city-mean {cm:.2f} vs national {nat:.2f} (gap {gap:.0%})")
+            violations.append(
+                f"item {code}: city-mean {cm:.2f} vs national {nat:.2f} (gap {gap:.0%})"
+            )
     if violations:
         raise ValidationError(
             "national-vs-city cross-check FAILED — a column is probably misaligned:\n"
@@ -127,8 +131,9 @@ def national_crosscheck(
         )
 
 
-def validate_prices(new_prices: pd.DataFrame, panel: pd.DataFrame, new_week: dt.date,
-                    skip_gap: bool = False) -> pd.DataFrame:
+def validate_prices(
+    new_prices: pd.DataFrame, panel: pd.DataFrame, new_week: dt.date, skip_gap: bool = False
+) -> pd.DataFrame:
     """Full gate: schema, then business rules. Raises ValidationError on any failure."""
     validate_frame(new_prices, "prices_weekly")
     check_week_gap(new_week, panel, skip=skip_gap)

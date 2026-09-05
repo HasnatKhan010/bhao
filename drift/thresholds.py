@@ -32,8 +32,8 @@ COVERAGE_GAP_MAX = 0.12
 COVERAGE_WINDOW = 12
 
 # Promotion gate (five conditions, all must hold)
-PROMOTE_MIN_RELATIVE_IMPROVEMENT = 0.03      # challenger beats champion by >=3% relative
-PROMOTE_MAX_CATEGORY_REGRESSION = 0.10       # no category loses by >10% relative
+PROMOTE_MIN_RELATIVE_IMPROVEMENT = 0.03  # challenger beats champion by >=3% relative
+PROMOTE_MAX_CATEGORY_REGRESSION = 0.10  # no category loses by >10% relative
 PROMOTE_COVERAGE_LO = 0.72
 PROMOTE_COVERAGE_HI = 0.88
 

@@ -48,36 +48,57 @@ def run(run_id: str | None = None) -> pd.DataFrame:
         if np.isfinite(rm) and bt_mase:
             threshold = bt_mase * 1.25
             fired = rm > threshold and len(live_champ) >= 2
-            rows.append({
-                "run_id": run_id, "checked_on": checked_on, "channel": "residual",
-                "subject": "overall", "test": "rolling_mase", "statistic": round(rm, 4),
-                "threshold": round(threshold, 4), "p_value": None, "fired": fired,
-                "severity": "critical" if fired else "info",
-                "window_start": live_champ["target_week"].min(),
-                "window_end": live_champ["target_week"].max(),
-                "note": (f"Live rolling MASE of the champion ({champ}) is {rm:.2f} against a "
-                         f"backtest MASE of {bt_mase:.2f}."
-                         if not fired else
-                         f"Live rolling MASE {rm:.2f} vs backtest {bt_mase:.2f} for {len(live_champ)} "
-                         f"weeks — the champion's relationship with prices has moved."),
-            })
+            rows.append(
+                {
+                    "run_id": run_id,
+                    "checked_on": checked_on,
+                    "channel": "residual",
+                    "subject": "overall",
+                    "test": "rolling_mase",
+                    "statistic": round(rm, 4),
+                    "threshold": round(threshold, 4),
+                    "p_value": None,
+                    "fired": fired,
+                    "severity": "critical" if fired else "info",
+                    "window_start": live_champ["target_week"].min(),
+                    "window_end": live_champ["target_week"].max(),
+                    "note": (
+                        f"Live rolling MASE of the champion ({champ}) is {rm:.2f} "
+                        f"against a backtest MASE of {bt_mase:.2f}."
+                        if not fired
+                        else f"Live rolling MASE {rm:.2f} vs backtest {bt_mase:.2f} "
+                        f"over {len(live_champ)} weeks — the champion's relationship "
+                        f"with prices has moved."
+                    ),
+                }
+            )
 
     cov = live_champ["coverage_80"].dropna()
     if len(cov):
         gap = float(abs(cov.mean() - 0.80))
         fired = gap > 0.12
-        rows.append({
-            "run_id": run_id, "checked_on": checked_on, "channel": "coverage",
-            "subject": "overall", "test": "coverage_gap", "statistic": round(gap, 4),
-            "threshold": 0.12, "p_value": None, "fired": fired,
-            "severity": "warn" if fired else "info",
-            "window_start": live_champ["target_week"].min(),
-            "window_end": live_champ["target_week"].max(),
-            "note": (f"80% intervals delivered {cov.mean():.0%} coverage over the last "
-                     f"{len(cov)} weeks — off by {gap:.0%}."
-                     if fired else
-                     f"80% interval coverage within tolerance over the last {len(cov)} weeks."),
-        })
+        rows.append(
+            {
+                "run_id": run_id,
+                "checked_on": checked_on,
+                "channel": "coverage",
+                "subject": "overall",
+                "test": "coverage_gap",
+                "statistic": round(gap, 4),
+                "threshold": 0.12,
+                "p_value": None,
+                "fired": fired,
+                "severity": "warn" if fired else "info",
+                "window_start": live_champ["target_week"].min(),
+                "window_end": live_champ["target_week"].max(),
+                "note": (
+                    f"80% intervals delivered {cov.mean():.0%} coverage over the last "
+                    f"{len(cov)} weeks — off by {gap:.0%}."
+                    if fired
+                    else f"80% interval coverage within tolerance over the last {len(cov)} weeks."
+                ),
+            }
+        )
 
     # --- feature channel: PSI/KS on core features, training window vs last 4 weeks ---
     panel = pd.read_parquet(config.PANEL_DIR / "prices_weekly.parquet")

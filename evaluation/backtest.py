@@ -45,8 +45,9 @@ def make_folds(panel: pd.DataFrame, n_folds: int = 12, min_train_weeks: int = 26
         target_week = made_on + dt.timedelta(weeks=1)
         train = as_of(panel, made_on)
         eval_rows = panel[
-            (pd.to_datetime(panel["week_ending"]).dt.date == target_week)
-            & (panel["revision"] == 0)
+            (pd.to_datetime(panel["week_ending"]).dt.date == target_week) & (panel["revision"] == 0)
         ].copy()
-        folds.append(Fold(index=i, made_on=made_on, target_week=target_week, train=train, eval=eval_rows))
+        folds.append(
+            Fold(index=i, made_on=made_on, target_week=target_week, train=train, eval=eval_rows)
+        )
     return folds

@@ -14,10 +14,9 @@ import sys
 
 import pandas as pd
 
-from ingest import config, validate as vld
+from ingest import config
+from ingest import validate as vld
 from ingest.discover import download_report, find_report
-from ingest.fetch import cdx_query
-from ingest.normalise import resolve_item, urdu_labels
 from ingest.parse_annex import ParsedAnnex, parse_annex
 from ingest.parse_spi import ParsedSPI, parse_spi
 from ingest.publish import (
@@ -52,8 +51,13 @@ def _city_means_by_code(prices: pd.DataFrame) -> dict[str, float]:
 
 
 def ingest_week(
-    week_ending: dt.date, spi_path, annex_path, spi_url: str, annex_url: str,
-    panel: pd.DataFrame | None = None, resolver: ItemResolver | None = None,
+    week_ending: dt.date,
+    spi_path,
+    annex_path,
+    spi_url: str,
+    annex_url: str,
+    panel: pd.DataFrame | None = None,
+    resolver: ItemResolver | None = None,
     backfill: bool = False,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Parse + normalise + validate one week. Returns (new_panel, prices, national).
@@ -80,9 +84,7 @@ def ingest_week(
     national = spi_to_frame(spi, week_ending, spi_url, resolver)
 
     # the column-offset defence: national table vs unweighted mean of city avgs
-    vld.national_crosscheck(
-        _city_means_by_code(prices), _national_prices_by_code(spi, resolver)
-    )
+    vld.national_crosscheck(_city_means_by_code(prices), _national_prices_by_code(spi, resolver))
     # the full gate: schema + week gap + coverage + quarantine
     prices = vld.validate_prices(prices, panel, week_ending, skip_gap=backfill)
 
@@ -133,7 +135,7 @@ def run(week_ending: dt.date | None = None) -> dict:
     }
 
 
-def find_report_for_latest(session) -> "object":  # noqa: F821
+def find_report_for_latest(session) -> object:  # noqa: F821
     from ingest.discover import latest_week
 
     lw = latest_week(session)
@@ -182,16 +184,25 @@ def backfill_all(session=None) -> dict:
                     paths = download_report(refs, session)
                 except Exception as e:
                     status, src = f"download_failed: {type(e).__name__}: {e}", refs.strategy or ""
-                    coverage_rows.append({
-                        "week_ending": week.isoformat(), "status": status, "source": src,
-                    })
+                    coverage_rows.append(
+                        {
+                            "week_ending": week.isoformat(),
+                            "status": status,
+                            "source": src,
+                        }
+                    )
                     print(f"{week} {status[:70]}", flush=True)
                     continue
                 if paths["spi"] and paths["annex"]:
                     try:
                         panel, _, _, n_revs = ingest_week(
-                            week, paths["spi"], paths["annex"],
-                            refs.spi_url or "", refs.annex_url or "", panel, resolver,
+                            week,
+                            paths["spi"],
+                            paths["annex"],
+                            refs.spi_url or "",
+                            refs.annex_url or "",
+                            panel,
+                            resolver,
                             backfill=True,
                         )
                         status, src = "ok", refs.strategy or ""
@@ -206,9 +217,13 @@ def backfill_all(session=None) -> dict:
                     status = "found_but_download_missing"
                 if refs.post_url:
                     src = (src + " post:" + refs.post_url).strip()
-        coverage_rows.append({
-            "week_ending": week.isoformat(), "status": status, "source": src,
-        })
+        coverage_rows.append(
+            {
+                "week_ending": week.isoformat(),
+                "status": status,
+                "source": src,
+            }
+        )
         print(f"{week} {status[:60]}", flush=True)
 
     import csv as _csv

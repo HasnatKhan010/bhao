@@ -118,7 +118,9 @@ def mase_per_row(
     """Per-row scaled error: |err| / denominator(city, item). Rows with no
     denominator (series too short) are NaN and excluded from pooled MASE."""
     err = np.abs(y_true - y_pred)
-    den = keys.merge(denominators.rename("den"), how="left", left_on=["city_code", "item_code"], right_index=True)["den"].to_numpy()
+    den = keys.merge(
+        denominators.rename("den"), how="left", left_on=["city_code", "item_code"], right_index=True
+    )["den"].to_numpy()
     with np.errstate(divide="ignore", invalid="ignore"):
         return err / den
 
@@ -136,10 +138,12 @@ def pooled_mase(
 
 def beat_pct(keys_a, err_a, keys_b, err_b) -> float:
     """Fraction of series where model A's MAE < model B's MAE (e.g. gbm vs snaive)."""
+
     def per_series(keys, err):
         df = keys.copy()
         df["err"] = err
         return df.groupby(["city_code", "item_code"])["err"].mean()
+
     a = per_series(keys_a, np.abs(err_a))
     b = per_series(keys_b, np.abs(err_b))
     joined = pd.concat([a.rename("a"), b.rename("b")], axis=1).dropna()

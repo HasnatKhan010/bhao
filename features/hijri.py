@@ -10,8 +10,7 @@ from __future__ import annotations
 import datetime as dt
 from pathlib import Path
 
-from hijridate import Gregorian, Hijri
-from hijridate import convert as _conv
+from hijridate import Gregorian
 
 HERE = Path(__file__).parent
 OUT = HERE / "hijri_weeks.csv"
