@@ -29,7 +29,10 @@ from evaluation.report import (
     beat_seasonal_naive_pct,
     run_backtest,
 )
+from features.build import build_features
 from ingest import config
+from models import baselines as B
+from models.global_gbm import GlobalGBM
 
 
 def load_panel_items_national(data_dir=None) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
@@ -195,6 +198,60 @@ def write_runtime_artefacts(
     )
     print("\nBASELINE TABLE:", table.to_string())
     print(f"\nchampion: {champion} | beat_seasonal_naive_pct: {champ_win}")
+    # is_champion must reflect the ACTUAL champion, not whichever model ran last —
+    # the API serves is_champion=True rows, so this flag is the serve decision.
+    fc["is_champion"] = fc["model_name"] == champion
+
+    # the forward forecast: predict the week AFTER the panel's last week. Without
+    # this the app serves a stale forecast for a week whose actual already arrived.
+    from contracts.schemas import latest_revision as _lr
+
+    full = _lr(panel)
+    made_on = sorted(set(pd.to_datetime(full["week_ending"]).dt.date))[-1]
+    target_week = made_on + dt.timedelta(days=7)
+    created = pd.Timestamp.now(dt.UTC).floor("s")
+    eff_season = summary.get("effective_season", 4)
+
+    fwd_frames = []
+    for name, fn in B.FAST_BASELINES.items():
+        out = (
+            fn(full, target_week, season=eff_season)
+            if name == "seasonal_naive"
+            else fn(full, target_week)
+        )
+        fwd_frames.append(out)
+    if include_gbm:
+        feats_full = build_features(full, items, nat)
+        gbm_full = GlobalGBM(log_target=log_target).fit(feats_full, made_on=made_on)
+        last_rows = (
+            feats_full.sort_values("week_ending")
+            .groupby(["city_code", "item_code"], sort=False)
+            .tail(1)
+        )
+        pred = gbm_full.predict(last_rows)[["city_code", "item_code", "p10", "p50", "p90"]]
+        fwd_frames.append(pred)
+
+    fwd_rows = []
+    for name, out in zip([n for n in B.FAST_BASELINES] + (["global_gbm"] if include_gbm else []),
+                         fwd_frames, strict=False):
+        out = out.copy()
+        out["run_id"] = summary["run_id"]
+        out["model_name"] = name
+        out["model_version"] = f"{name}-live"
+        out["made_on"] = made_on
+        out["target_week"] = target_week
+        out["horizon"] = np.int32(1)
+        out["is_champion"] = name == champion
+        fv = summary.get("features_version", "feat-v1")
+        out["features_hash"] = [
+            hashlib.sha256(f"{c}|{i}|{made_on}|{fv}".encode()).hexdigest()[:16]
+            for c, i in zip(out["city_code"], out["item_code"], strict=False)
+        ]
+        out["created_at"] = created
+        fwd_rows.append(out)
+    fc = pd.concat([fc] + fwd_rows, ignore_index=True)
+    fc.to_parquet(config.FORECASTS_DIR / "forecasts.parquet", index=False)
+
     from drift.run_checks import run as run_drift_checks
 
     drift_df = run_drift_checks(run_id=summary["run_id"])

@@ -7,7 +7,7 @@ import Link from "next/link";
 import DirectionBadge from "@/components/DirectionBadge";
 import FixtureBanner from "@/components/FixtureBanner";
 import PriceChart from "@/components/PriceChart";
-import { api, fmt, fmtRs } from "@/lib/api";
+import { api, fmt, fmtRs, type Forecast } from "@/lib/api";
 
 function useHealth() {
   const [isFixture, setIsFixture] = useState<boolean | null>(null);
@@ -31,7 +31,7 @@ export default function HomePage() {
   const [items, setItems] = useState<{ item_code: string; item_en: string; item_ur: string; unit_raw: string }[]>([]);
   const [city, setCity] = useState("");
   const [item, setItem] = useState("");
-  const [forecast, setForecast] = useState<Awaited<ReturnType<typeof api.forecast>>["data"] | null>(null);
+  const [forecast, setForecast] = useState<Forecast | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -49,7 +49,7 @@ export default function HomePage() {
     setForecast(null);
     if (item) {
       setBusy(true);
-      api.forecast(city, item).then((r) => setForecast(r.data)).finally(() => setBusy(false));
+      api.forecast(city, item).then((r) => setForecast(r)).finally(() => setBusy(false));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [city]);
@@ -57,7 +57,7 @@ export default function HomePage() {
   useEffect(() => {
     if (!city || !item) return;
     setBusy(true);
-    api.forecast(city, item).then((r) => setForecast(r.data)).finally(() => setBusy(false));
+    api.forecast(city, item).then((r) => setForecast(r)).finally(() => setBusy(false));
   }, [item, city]);
 
   const label = useMemo(() => {

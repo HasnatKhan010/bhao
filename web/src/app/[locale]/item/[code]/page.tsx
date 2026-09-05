@@ -25,7 +25,7 @@ export default function ItemPage() {
     if (!code) return;
     Promise.all(
       cities.map((c) =>
-        api.forecast(c.city_code, code).then((r) => ({ city: c.city_code, data: r.data })).catch(() => null)
+        api.forecast(c.city_code, code).then((r) => ({ city: c.city_code, data: r })).catch(() => null)
       )
     ).then((all) => {
       const m: Record<string, any> = {};

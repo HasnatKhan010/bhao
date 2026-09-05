@@ -24,7 +24,7 @@ export default function CityPage() {
     if (!code) return;
     Promise.all(
       items.map((it) =>
-        api.forecast(code, it.item_code).then((r) => ({ item: it.item_code, data: r.data })).catch(() => null)
+        api.forecast(code, it.item_code).then((r) => ({ item: it.item_code, data: r })).catch(() => null)
       )
     ).then((all) => {
       const m: Record<string, any> = {};
