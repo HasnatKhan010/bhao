@@ -266,14 +266,26 @@ class TestConventions:
 
     def test_api_does_not_import_training_code(self):
         # trap #1: the moment api/ imports LightGBM the container triples in size
-        # and a training bug can break the site
+        # and a training bug can break the site. Checked in a CLEAN subprocess —
+        # sys.modules in this process is already polluted by the model tests.
+        import subprocess
         import sys
+        from pathlib import Path
 
-        import api.main  # noqa: F401
-
-        for banned in ("lightgbm", "statsmodels", "models.global_gbm",
-                       "features.build", "ingest.fetch"):
-            assert banned not in sys.modules, f"api must not import {banned}"
+        repo = Path(__file__).resolve().parents[2]
+        code = (
+            "import sys; import api.main; "
+            "banned=[m for m in ('lightgbm','statsmodels','models.global_gbm',"
+            "'features.build','ingest.fetch') if m in sys.modules]; "
+            "print(','.join(banned))"
+        )
+        out = subprocess.run(
+            [sys.executable, "-c", code], cwd=repo, capture_output=True, text=True,
+            env={**os.environ, "BHAO_DATA_DIR": "contracts/fixtures"},
+        )
+        assert out.returncode == 0, out.stderr
+        leaked = out.stdout.strip()
+        assert not leaked, f"api must not import: {leaked}"
 
     def test_no_write_methods(self, client):
         for method in ("post", "put", "delete", "patch"):
