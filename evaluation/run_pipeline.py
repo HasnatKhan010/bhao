@@ -268,4 +268,10 @@ def write_runtime_artefacts(
 
 if __name__ == "__main__":
     panel, items, nat = load_panel_items_national()
+    n_weeks = pd.to_datetime(panel["week_ending"]).dt.date.nunique()
+    if n_weeks < 12:
+        raise SystemExit(
+            f"panel has only {n_weeks} weeks - too young for a backtest. "
+            "Run the history bootstrap (make backfill) first; the weekly workflow does this automatically."
+        )
     write_runtime_artefacts(panel, items, nat)

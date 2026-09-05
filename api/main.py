@@ -17,6 +17,7 @@ import pandas as pd
 from fastapi import FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
+from pydantic import BaseModel
 
 from api import store as S
 from api.schemas import (
@@ -106,19 +107,24 @@ def _rate_limit(request: Request, bucket: str, per_minute: int) -> None:
 @app.middleware("http")
 async def _cache_and_limit(request: Request, call_next):
     path = request.url.path
-    if path.startswith("/api/download/panel.csv"):
-        _rate_limit(request, "csv", S.RATE_LIMIT_CSV)
-    elif path.startswith("/api/"):
-        _rate_limit(request, "json", S.RATE_LIMIT_JSON)
     try:
+        if path.startswith("/api/download/panel.csv"):
+            _rate_limit(request, "csv", S.RATE_LIMIT_CSV)
+        elif path.startswith("/api/"):
+            _rate_limit(request, "json", S.RATE_LIMIT_JSON)
         response = await call_next(request)
-    except ApiError as exc:  # raised inside the middleware chain
+    except ApiError as exc:  # rate limit raises inside the guarded block -> clean 429
         return await _api_error(request, exc)
     if path.startswith("/api/") and path != "/api/health":
         response.headers.setdefault("Cache-Control", f"public, max-age={S.CACHE_TTL_SECONDS}")
     else:
         response.headers.setdefault("Cache-Control", "no-store")
     return response
+
+
+def reset_rate_limits() -> None:
+    """Clear the per-IP buckets (used by tests; harmless in production)."""
+    _hits.clear()
 
 
 def _meta() -> Meta:
@@ -432,6 +438,75 @@ def forecast(city_code: str, item_code: str, history_weeks: int = Query(52, ge=4
         ],
         recent_error=err,
     )
+
+
+class ForecastRow(BaseModel):
+    city_code: str
+    item_code: str
+    item_en: str | None = None
+    item_ur: str | None = None
+    city_en: str | None = None
+    city_ur: str | None = None
+    target_week: dt.date | None
+    p10: float | None
+    p50: float | None
+    p90: float | None
+    model_version: str | None
+    made_on: dt.date | None
+
+
+@app.get("/api/forecasts", response_model=ListResponse[ForecastRow], tags=["forecast"])
+def forecasts_bulk(
+    city_code: str | None = None,
+    item_code: str | None = None,
+    limit: int = Query(2000, ge=1, le=20000),
+):
+    """Latest champion forecast per series in scope — ONE request for a whole city
+    or item, so list pages don't fire dozens of single-series calls."""
+    st = S.store()
+    if not st.has("forecasts"):
+        return ListResponse[ForecastRow](data=[], meta=_meta())
+    where, params = ["f.is_champion = TRUE"], []
+    if city_code:
+        where.append("f.city_code = ?")
+        params.append(city_code)
+    if item_code:
+        where.append("f.item_code = ?")
+        params.append(item_code)
+    c_join = f"LEFT JOIN {st.scan('cities')} c ON c.city_code = f.city_code" if city_code else ""
+    city_cols = "c.city_en, c.city_ur," if city_code else "NULL AS city_en, NULL AS city_ur,"
+    df = st.df(
+        f"""WITH latest AS (
+                SELECT city_code, item_code, max(target_week) AS tw
+                FROM {st.scan('forecasts')} f
+                WHERE {' AND '.join(where)}
+                GROUP BY city_code, item_code
+            )
+            SELECT f.city_code, f.item_code, f.target_week, f.p10, f.p50, f.p90,
+                   f.model_version, f.made_on, i.item_en, i.item_ur,
+                   {city_cols}
+                   f.created_at
+            FROM latest l
+            JOIN {st.scan('forecasts')} f
+              ON f.city_code = l.city_code AND f.item_code = l.item_code AND f.target_week = l.tw
+             AND f.is_champion = TRUE
+            LEFT JOIN {st.scan('items')} i ON i.item_code = f.item_code
+            {c_join}
+            ORDER BY f.item_code, f.city_code LIMIT {int(limit)}""",
+        params,
+    )
+    rows = [
+        ForecastRow(
+            city_code=r["city_code"], item_code=r["item_code"],
+            item_en=r.get("item_en"), item_ur=r.get("item_ur"),
+            city_en=r.get("city_en"), city_ur=r.get("city_ur"),
+            target_week=_as_date(r["target_week"]), p10=_f(r["p10"]),
+            p50=_f(r["p50"]), p90=_f(r["p90"]),
+            model_version=r.get("model_version"), made_on=_as_date(r["made_on"]),
+        )
+        for r in df.to_dict("records")
+    ]
+    return ListResponse[ForecastRow](data=rows, meta=_meta())
 
 
 @app.get("/api/movers", response_model=ListResponse[Mover], tags=["panel"])

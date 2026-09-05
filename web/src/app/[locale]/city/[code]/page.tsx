@@ -5,36 +5,43 @@ import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
-import { api, fmtRs } from "@/lib/api";
+import { api, fmtRs, type ForecastRow } from "@/lib/api";
 
-/** Every item in one city: table + movers of the week. */
+/** Every item in one city: latest actual + next-week forecast, in TWO requests. */
 export default function CityPage() {
   const t = useTranslations();
   const { code } = useParams<{ code: string }>();
   const [cities, setCities] = useState<{ city_code: string; city_en: string; city_ur: string }[]>([]);
-  const [items, setItems] = useState<{ item_code: string; item_en: string; item_ur: string; unit_raw: string }[]>([]);
-  const [rows, setRows] = useState<Record<string, any>>({});
+  const [rows, setRows] = useState<ForecastRow[]>([]);
+  const [latest, setLatest] = useState<Record<string, number | null>>({});
 
   useEffect(() => {
     api.cities().then((r) => setCities(r.data.filter((c) => c.city_code !== "00")));
-    api.items().then((r) => setItems(r.data));
   }, []);
 
   useEffect(() => {
     if (!code) return;
-    Promise.all(
-      items.map((it) =>
-        api.forecast(code, it.item_code).then((r) => ({ item: it.item_code, data: r })).catch(() => null)
-      )
-    ).then((all) => {
-      const m: Record<string, any> = {};
-      all.forEach((x) => { if (x) m[x.item] = x.data; });
-      setRows(m);
-    });
-  }, [code, items]);
+    api.forecastsBulk({ city_code: code }).then((r) => setRows(r.data)).catch(() => setRows([]));
+    api
+      .prices({ city_code: code, limit: 400 })
+      .then((r) => {
+        const m: Record<string, number | null> = {};
+        for (const row of r.data) {
+          if (!(row.item_code in m)) m[row.item_code] = row.price_avg; // rows arrive week DESC
+        }
+        setLatest(m);
+      })
+      .catch(() => {});
+  }, [code]);
 
   const city = cities.find((c) => c.city_code === code);
-  const withData = items.filter((i) => rows[i.item_code]);
+  const items = rows.map((r) => ({
+    code: r.item_code,
+    ur: r.item_ur ?? r.item_code,
+    en: r.item_en ?? r.item_code,
+    last: latest[r.item_code] ?? null,
+    p50: r.p50,
+  }));
 
   return (
     <div className="space-y-6">
@@ -43,30 +50,27 @@ export default function CityPage() {
       </h1>
       <table className="w-full border-collapse overflow-hidden rounded-xl bg-white text-sm shadow-sm">
         <thead>
-          <tr className="bg-slate-100 text-left">
+          <tr className="bg-slate-100 text-start">
             <th className="px-3 py-2 font-semibold">{t("common.chooseItem")}</th>
             <th className="px-3 py-2 font-semibold">{t("common.thisWeek")}</th>
             <th className="px-3 py-2 font-semibold">{t("common.nextWeek")}</th>
           </tr>
         </thead>
         <tbody>
-          {withData.map((it) => {
-            const f = rows[it.item_code];
-            return (
-              <tr key={it.item_code} className="border-t border-slate-100">
-                <td className="px-3 py-2">
-                  <Link href={`/item/${it.item_code}`} className="text-emerald-700 hover:underline">
-                    {it.item_ur} · {it.item_en}
-                  </Link>
-                  <span className="ml-1 text-xs text-slate-400">({it.unit_raw})</span>
-                </td>
-                <td className="px-3 py-2">{fmtRs(f.last_actual)}</td>
-                <td className="px-3 py-2 font-semibold">{fmtRs(f.p50)}</td>
-              </tr>
-            );
-          })}
+          {items.map((it) => (
+            <tr key={it.code} className="border-t border-slate-100">
+              <td className="px-3 py-2">
+                <Link href={`/item/${it.code}`} className="text-emerald-700 hover:underline">
+                  {it.ur} · {it.en}
+                </Link>
+              </td>
+              <td className="px-3 py-2">{fmtRs(it.last)}</td>
+              <td className="px-3 py-2 font-semibold">{fmtRs(it.p50)}</td>
+            </tr>
+          ))}
         </tbody>
       </table>
+      {!rows.length && <p className="text-sm text-slate-500">{t("common.loading")}</p>}
     </div>
   );
 }

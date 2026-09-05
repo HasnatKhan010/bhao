@@ -265,6 +265,46 @@ class TestModel:
         assert len(entry["reason"]) > 20, "promotion reasons are English, not dict dumps"
 
 
+class TestRateLimit:
+    def test_429_after_60_json_requests_per_minute(self, client):
+        # hit a cheap endpoint 60 times; the 61st must be a clean 429 envelope
+        try:
+            for _ in range(60):
+                client.get("/api/cities")
+            codes = [client.get("/api/cities").status_code for _ in range(3)]
+            assert 429 in codes, "the 61st+ request in a minute must be rate limited"
+            body = client.get("/api/cities").json()
+            assert body.get("error", {}).get("code") == "RATE_LIMITED"
+        finally:
+            from api.main import reset_rate_limits
+
+            reset_rate_limits()  # don't poison every later test with 429s
+
+
+class TestForecastsBulk:
+    def test_one_row_per_series_in_scope(self, client):
+        b = client.get("/api/forecasts?city_code=05").json()
+        _meta_ok(b)
+        # one row per item that has a champion forecast (a fixture series with
+        # planted missing history legitimately has none)
+        assert 45 <= len(b["data"]) <= 51
+        keys = [(r["city_code"], r["item_code"]) for r in b["data"]]
+        assert len(set(keys)) == len(keys), "one row per series, no duplicates"
+
+    def test_item_scope_covers_all_cities(self, client):
+        b = client.get("/api/forecasts?item_code=019").json()
+        assert 14 <= len(b["data"]) <= 17
+        assert {r["city_code"] for r in b["data"]} <= {f"{i:02d}" for i in range(1, 18)}
+
+    def test_champion_only(self, client):
+        rows = client.get("/api/forecasts?city_code=05").json()["data"]
+        assert all(r["p10"] <= r["p50"] <= r["p90"] for r in rows if r["p50"] is not None)
+
+    def test_unknown_scope_is_empty_not_error(self, client):
+        b = client.get("/api/forecasts?city_code=99").json()
+        assert b["data"] == []
+
+
 class TestDataset:
     def test_parquet_redirects(self, client):
         r = client.get("/api/download/panel.parquet", follow_redirects=False)

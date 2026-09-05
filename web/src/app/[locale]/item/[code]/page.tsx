@@ -6,15 +6,18 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 
 import PriceChart from "@/components/PriceChart";
-import { api, fmtRs } from "@/lib/api";
+import { api, fmtRs, type ForecastRow } from "@/lib/api";
 
-/** One item across all 17 cities: chart + city table + national line. */
+/** One item across all 17 cities: chart + city table, in THREE requests. */
 export default function ItemPage() {
   const t = useTranslations();
   const { code } = useParams<{ code: string }>();
   const [items, setItems] = useState<{ item_code: string; item_en: string; item_ur: string; unit_raw: string }[]>([]);
   const [cities, setCities] = useState<{ city_code: string; city_en: string; city_ur: string }[]>([]);
-  const [rows, setRows] = useState<Record<string, any>>({});
+  const [rows, setRows] = useState<ForecastRow[]>([]);
+  const [latest, setLatest] = useState<Record<string, number | null>>({});
+  const [chart, setChart] = useState<{ week_ending: string; price_avg: number | null }[]>([]);
+  const [unit, setUnit] = useState("");
 
   useEffect(() => {
     api.items().then((r) => setItems(r.data));
@@ -23,60 +26,68 @@ export default function ItemPage() {
 
   useEffect(() => {
     if (!code) return;
-    Promise.all(
-      cities.map((c) =>
-        api.forecast(c.city_code, code).then((r) => ({ city: c.city_code, data: r })).catch(() => null)
-      )
-    ).then((all) => {
-      const m: Record<string, any> = {};
-      all.forEach((x) => { if (x) m[x.city] = x.data; });
-      setRows(m);
-    });
-  }, [code, cities]);
+    api.forecastsBulk({ item_code: code }).then((r) => setRows(r.data)).catch(() => setRows([]));
+    api
+      .prices({ item_code: code, limit: 400 })
+      .then((r) => {
+        const m: Record<string, number | null> = {};
+        for (const row of r.data) {
+          if (!(row.city_code in m)) m[row.city_code] = row.price_avg;
+        }
+        setLatest(m);
+      })
+      .catch(() => {});
+    // one representative series for the chart (Lahore)
+    api
+      .forecast("05", code)
+      .then((r) => {
+        setChart(r.history);
+        setUnit(r.unit_raw);
+      })
+      .catch(() => {});
+  }, [code]);
 
   const item = items.find((i) => i.item_code === code);
-  const withData = cities.filter((c) => rows[c.city_code]);
+  const cityById = new Map(cities.map((c) => [c.city_code, c]));
+  const ordered = cities
+    .map((c) => rows.find((r) => r.city_code === c.city_code))
+    .filter((r): r is ForecastRow => Boolean(r));
 
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">
         {item ? `${item.item_ur} · ${item.item_en}` : code}
-        {item && <span className="ml-2 text-sm font-normal text-slate-400">({item.unit_raw})</span>}
+        {item && <span className="ms-2 text-sm font-normal text-slate-400">({item.unit_raw})</span>}
       </h1>
 
-      {withData.length > 0 && (
-        <PriceChart
-          history={rows[withData[0].city_code].history}
-          unit={item?.unit_raw ?? ""}
-        />
-      )}
+      {chart.length > 0 && <PriceChart history={chart} unit={unit || item?.unit_raw || ""} />}
 
       <table className="w-full border-collapse overflow-hidden rounded-xl bg-white text-sm shadow-sm">
         <thead>
-          <tr className="bg-slate-100 text-left">
+          <tr className="bg-slate-100 text-start">
             <th className="px-3 py-2 font-semibold">{t("common.chooseCity")}</th>
             <th className="px-3 py-2 font-semibold">{t("common.thisWeek")}</th>
             <th className="px-3 py-2 font-semibold">{t("common.nextWeek")}</th>
           </tr>
         </thead>
         <tbody>
-          {withData.map((c) => {
-            const f = rows[c.city_code];
+          {ordered.map((r) => {
+            const c = cityById.get(r.city_code);
             return (
-              <tr key={c.city_code} className="border-t border-slate-100">
+              <tr key={r.city_code} className="border-t border-slate-100">
                 <td className="px-3 py-2">
-                  <Link href={`/city/${c.city_code}`} className="text-emerald-700 hover:underline">
-                    {c.city_ur} · {c.city_en}
+                  <Link href={`/city/${r.city_code}`} className="text-emerald-700 hover:underline">
+                    {c ? `${c.city_ur} · ${c.city_en}` : r.city_code}
                   </Link>
                 </td>
-                <td className="px-3 py-2">{fmtRs(f.last_actual)}</td>
-                <td className="px-3 py-2 font-semibold">{fmtRs(f.p50)}</td>
+                <td className="px-3 py-2">{fmtRs(latest[r.city_code] ?? null)}</td>
+                <td className="px-3 py-2 font-semibold">{fmtRs(r.p50)}</td>
               </tr>
             );
           })}
         </tbody>
       </table>
-      <p className="text-xs text-slate-400">{t("common.notSurveyed")} = no row = the sheet printed “-”.</p>
+      <p className="text-xs text-slate-400">{t("common.notSurveyed")} = no row = the sheet printed &#8220;-&#8221;.</p>
     </div>
   );
 }
