@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 
 import FixtureBanner from "@/components/FixtureBanner";
 import Header from "@/components/Header";
+import PWARegister from "@/components/PWARegister";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const nastaliq = Noto_Nastaliq_Urdu({
@@ -36,6 +37,7 @@ export default async function LocaleLayout({
       <body className="min-h-screen bg-slate-50 text-slate-900 antialiased"
             style={rtl ? { fontFamily: "var(--font-nastaliq)", lineHeight: "1.9" } : { fontFamily: "var(--font-inter)" }}>
         <NextIntlClientProvider messages={messages}>
+          <PWARegister />
           {/* Fixture banner is client-driven via /api/health on the home page;
               the header renders immediately, the banner pops in when meta lands. */}
           <div id="banner-root" />
@@ -45,7 +47,12 @@ export default async function LocaleLayout({
             <p>
               بھاؤ · Bhao — public prices from the Pakistan Bureau of Statistics, weekly SPI.
             </p>
-            <p className="mt-1 text-xs">Not financial advice · forecasts carry their own error record</p>
+            <p className="mt-1 text-xs">
+              Not financial advice · forecasts carry their own error record ·{" "}
+              <a href={`/${locale}/privacy`} className="underline hover:text-emerald-700">
+                Privacy
+              </a>
+            </p>
           </footer>
         </NextIntlClientProvider>
       </body>

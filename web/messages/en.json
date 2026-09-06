@@ -7,7 +7,8 @@
     "model": "Model",
     "data": "Data",
     "methodology": "Methodology",
-    "docs": "API docs"
+    "docs": "API docs",
+    "privacy": "Privacy"
   },
   "common": {
     "thisWeek": "This week",
@@ -100,5 +101,17 @@
     "item": "item",
     "price": "avg price",
     "change": "change"
+  },
+  "privacy": {
+    "title": "Privacy policy",
+    "collect": "We collect nothing. Bhao has no accounts, no sign-in, no analytics, no tracking cookies, and no advertising. We do not know who you are, and we do not want to know.",
+    "storage": "The only data stored on your device is a small preference (your chosen city, so the app opens where you left it) and a standard offline cache, so pages and the latest known prices work without a connection. Clearing your browser storage removes both.",
+    "server": "Our server keeps standard, anonymous access logs (IP address, requested page, timestamp) for rate limiting and abuse prevention only. They are not sold, shared, or used to profile anyone.",
+    "data": "All price data comes from public sources: the Pakistan Bureau of Statistics weekly Sensitive Price Indicator (public official statistics, attributed per row) and WFP/HDX monthly food prices (an existing open dataset, attributed). Forecasts are model output with published error rates — not financial advice.",
+    "contact": "Questions or takedown requests: open an issue on the project repository."
+  },
+  "footer": {
+    "source": "public prices from the Pakistan Bureau of Statistics, weekly SPI",
+    "disclaimer": "Not financial advice · forecasts carry their own error record"
   }
 }

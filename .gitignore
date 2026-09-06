@@ -31,3 +31,12 @@ out/
 Thumbs.db
 *.log
 logs/
+
+# capacitor / android
+web/android/.gradle/
+web/android/app/build/
+web/android/build/
+web/android/local.properties
+web/android/keystore/
+web/android/*.keystore
+web/android/key.properties
