@@ -15,6 +15,7 @@ COPY drift ./drift
 COPY registry ./registry
 COPY api ./api
 COPY ops ./ops
+COPY deploy/fetch_data.py ./fetch_data.py
 RUN pip install --no-cache-dir --prefix=/install .
 
 FROM python:3.11-slim

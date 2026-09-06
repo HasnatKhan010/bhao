@@ -13,7 +13,7 @@ import urllib.request
 from pathlib import Path
 
 BASE = "https://github.com/HasnatKhan010/bhao/releases/latest/download"
-DATA = Path("/app/data")
+DATA = Path(__import__("os").getenv("BHAO_DATA_DIR", "/app/data"))
 
 FILES = {
     "panel/prices_weekly.parquet": "prices_weekly.parquet",

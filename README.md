@@ -152,7 +152,7 @@ make web           # Next.js on :3000
 docker compose -f docker/compose.yml up   # both + data volume
 ```
 
-**Deploying? `DEPLOY.md` has the $0 path** — Hugging Face Space for the API, Vercel for the web, UptimeRobot keep-alive, ~20 minutes of clicking.
+**Deploying? `DEPLOY.md` has the $0 path** — Render (Docker) for the API, Vercel for the web, UptimeRobot keep-alive, ~15 minutes of clicking.
 
 Point `BHAO_DATA_DIR` at `contracts/fixtures` to develop against synthetic data —
 the app shows a visible banner whenever it is serving fixtures, so an invented
