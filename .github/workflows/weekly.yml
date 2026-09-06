@@ -83,8 +83,13 @@ jobs:
           p.to_csv("panel.csv", index=False)
           shutil.copyfile("data/panel/prices_weekly.parquet", "panel.parquet")
           EOF
-          gh release upload release --clobber panel.parquet panel.csv data/raw/coverage_report.csv ||             gh release create release panel.parquet panel.csv data/raw/coverage_report.csv               --title "Bhao dataset" --notes "Weekly panel, coverage report. See /data for the citation line."
-          gh release delete-asset release prices_weekly.parquet --yes || true
+          # the full artefact set: anything a deployed API needs to self-fetch
+          mkdir -p release_assets/panel release_assets/forecasts release_assets/registry
+          cp data/panel/prices_weekly.parquet release_assets/panel.parquet
+          cp data/panel/national_weekly.parquet data/panel/items.parquet data/panel/cities.parquet release_assets/panel/
+          cp data/forecasts/forecasts.parquet data/forecasts/metrics.parquet data/forecasts/drift.parquet release_assets/forecasts/
+          cp data/registry/model_registry.json release_assets/registry/
+          gh release upload release --clobber panel.parquet panel.csv release_assets/panel.parquet             release_assets/panel/national_weekly.parquet release_assets/panel/items.parquet             release_assets/panel/cities.parquet release_assets/forecasts/forecasts.parquet             release_assets/forecasts/metrics.parquet release_assets/forecasts/drift.parquet             release_assets/registry/model_registry.json data/raw/coverage_report.csv ||             gh release create release panel.parquet panel.csv release_assets/panel.parquet               release_assets/panel/national_weekly.parquet release_assets/panel/items.parquet               release_assets/panel/cities.parquet release_assets/forecasts/forecasts.parquet               release_assets/forecasts/metrics.parquet release_assets/forecasts/drift.parquet               release_assets/registry/model_registry.json data/raw/coverage_report.csv               --title "Bhao dataset" --notes "Weekly panel + API artefacts. See /data for the citation line." 
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
