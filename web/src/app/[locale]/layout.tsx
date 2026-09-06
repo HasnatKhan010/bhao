@@ -43,7 +43,7 @@ export default async function LocaleLayout({
           <div id="banner-root" />
           <Header />
           <main className="mx-auto max-w-5xl px-4 py-8">{children}</main>
-          <footer className="border-t border-slate-200 bg-white py-6 text-center text-sm text-slate-500">
+          <footer className="safe-bottom border-t border-slate-200 bg-white py-6 text-center text-sm text-slate-500">
             <p>
               بھاؤ · Bhao — public prices from the Pakistan Bureau of Statistics, weekly SPI.
             </p>

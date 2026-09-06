@@ -40,3 +40,4 @@ web/android/local.properties
 web/android/keystore/
 web/android/*.keystore
 web/android/key.properties
+apk/
