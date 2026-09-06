@@ -3,8 +3,11 @@ import createNextIntlPlugin from "next-intl/plugin";
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
 /** @type {import('next').NextConfig} */
+const isStaticExport = process.env.STATIC_EXPORT === "1";
 const nextConfig = {
-  output: "standalone",
+  // standalone = the deployed web server; export = the bundled Capacitor app
+  output: isStaticExport ? "export" : "standalone",
+  ...(isStaticExport ? { images: { unoptimized: true } } : {}),
   async rewrites() {
     const api = process.env.BHAO_API_URL || "http://localhost:8000";
     return [
