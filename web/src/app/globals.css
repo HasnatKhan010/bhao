@@ -6,3 +6,7 @@
   --font-inter: "Inter", system-ui, sans-serif;
   --font-nastaliq: "Noto Nastaliq Urdu", serif;
 }
+
+/* safe-area insets on notched phones (Capacitor/standalone) */
+.safe-top { padding-top: max(0px, env(safe-area-inset-top)); }
+.safe-bottom { padding-bottom: max(0px, env(safe-area-inset-bottom)); }

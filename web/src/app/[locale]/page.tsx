@@ -33,14 +33,22 @@ export default function HomePage() {
   const [item, setItem] = useState("");
   const [forecast, setForecast] = useState<Forecast | null>(null);
   const [busy, setBusy] = useState(false);
+  const [apiError, setApiError] = useState(false);
 
   useEffect(() => {
-    api.cities().then((r) => {
-      setCities(r.data.filter((c) => c.city_code !== "00"));
-      const saved = localStorage.getItem("bhao_city");
-      if (saved) setCity(saved);
-    });
-    api.items().then((r) => setItems(r.data));
+    api
+      .cities()
+      .then((r) => {
+        setCities(r.data.filter((c) => c.city_code !== "00"));
+        const saved = localStorage.getItem("bhao_city");
+        if (saved) setCity(saved);
+        setApiError(false);
+      })
+      .catch(() => setApiError(true));
+    api
+      .items()
+      .then((r) => setItems(r.data))
+      .catch(() => setApiError(true));
   }, []);
 
   useEffect(() => {
@@ -49,7 +57,14 @@ export default function HomePage() {
     setForecast(null);
     if (item) {
       setBusy(true);
-      api.forecast(city, item).then((r) => setForecast(r)).finally(() => setBusy(false));
+      api
+        .forecast(city, item)
+        .then((r) => {
+          setForecast(r);
+          setApiError(false);
+        })
+        .catch(() => setApiError(true))
+        .finally(() => setBusy(false));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [city]);
@@ -125,6 +140,15 @@ export default function HomePage() {
       </section>
 
       {busy && <p className="text-center text-slate-500">{t("common.loading")}</p>}
+
+      {apiError && !busy && (
+        <section className="rounded-2xl border border-red-200 bg-red-50 p-5 text-center">
+          <p className="text-lg font-semibold text-red-800">{t("common.error")}</p>
+          <p dir="rtl" lang="ur" className="mt-1 text-sm text-red-700">
+            برائے مہربانی اپنا انٹرنیٹ چیک کریں اور دوبارہ کوشش کریں۔
+          </p>
+        </section>
+      )}
 
       {forecast && label && (
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
