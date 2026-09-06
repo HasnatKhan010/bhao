@@ -1,0 +1,10 @@
+# Render Blueprint — deploy the Bhao API with one click:
+# render.com → New + → Blueprint → pick HasnatKhan010/bhao
+services:
+  - type: web
+    name: bhao-api
+    runtime: docker
+    dockerfilePath: ./docker/Dockerfile.api
+    plan: free
+    healthCheckPath: /api/health
+    autoDeploy: true
