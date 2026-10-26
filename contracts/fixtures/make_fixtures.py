@@ -922,7 +922,12 @@ def generate_all(out_dir: Path) -> dict[str, pd.DataFrame]:
         "drift": drift,
     }
     for name, df in named.items():
-        df.to_parquet(out_dir / f"{name}.parquet", index=False)
+        out_path = out_dir / f"{name}.parquet"
+        if out_path.exists():
+            existing = pd.read_parquet(out_path)
+            if existing.equals(df):
+                continue
+        df.to_parquet(out_path, index=False)
     (out_dir / "model_registry.json").write_text(
         json.dumps(registry, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
     )
