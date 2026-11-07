@@ -64,9 +64,12 @@ jobs:
             "https://api.github.com/repos/${{ github.repository }}/pages")"
           if [ "${status}" = "200" ]; then
             echo "enabled=true" >> "${GITHUB_OUTPUT}"
-          else
+          elif [ "${status}" = "404" ]; then
             echo "enabled=false" >> "${GITHUB_OUTPUT}"
             echo "GitHub Pages is not enabled (status ${status}); skipping deploy."
+          else
+            echo "::error::GitHub Pages status check failed (HTTP ${status})."
+            exit 1
           fi
 
   deploy:
