@@ -925,6 +925,9 @@ def generate_all(out_dir: Path) -> dict[str, pd.DataFrame]:
         out_path = out_dir / f"{name}.parquet"
         if out_path.exists():
             existing = pd.read_parquet(out_path)
+            if name == "items" and "pbs_aliases" in existing:
+                # Parquet reads list values back as NumPy arrays.
+                existing["pbs_aliases"] = existing["pbs_aliases"].map(list, na_action="ignore")
             if existing.equals(df):
                 continue
         df.to_parquet(out_path, index=False)
