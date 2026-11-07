@@ -8,12 +8,14 @@ restart is instant; delete /app/data to force a refetch.
 
 from __future__ import annotations
 
+import argparse
+import os
 import time
 import urllib.request
 from pathlib import Path
 
 BASE = "https://github.com/HasnatKhan010/bhao/releases/latest/download"
-DATA = Path(__import__("os").getenv("BHAO_DATA_DIR", "data"))
+DATA = Path(os.getenv("BHAO_DATA_DIR", "data"))
 
 FILES = {
     "panel/prices_weekly.parquet": "prices_weekly.parquet",
@@ -27,26 +29,33 @@ FILES = {
 }
 
 
-def main() -> None:
-    for attempt in range(3):
+def refresh() -> None:
+    for rel, name in FILES.items():
+        dest = DATA / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        url = f"{BASE}/{name}"
+        tmp = dest.with_suffix(dest.suffix + ".download")
         try:
-            for rel, name in FILES.items():
-                dest = DATA / rel
-                if dest.exists():
-                    print(f"  skip {rel} (exists)", flush=True)
-                    continue
-                dest.parent.mkdir(parents=True, exist_ok=True)
-                url = f"{BASE}/{name}"
-                print(f"  fetch {url}", flush=True)
-                urllib.request.urlretrieve(url, dest)
-                print(f"  ok {rel}", flush=True)
-            print("artefacts ready", flush=True)
+            urllib.request.urlretrieve(url, tmp)
+            if not dest.exists() or tmp.read_bytes() != dest.read_bytes():
+                os.replace(tmp, dest)
+                print(f"updated {rel}", flush=True)
+        finally:
+            tmp.unlink(missing_ok=True)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--watch", action="store_true")
+    args = parser.parse_args()
+    while True:
+        try:
+            refresh()
+        except Exception as e:  # noqa: BLE001 — retain the last complete download
+            print(f"data refresh failed: {e}", flush=True)
+        if not args.watch:
             return
-        except Exception as e:  # noqa: BLE001 — a release may be mid-update; retry
-            print(f"  attempt {attempt + 1} failed: {e}", flush=True)
-            time.sleep(5 * (attempt + 1))
-    # last resort: start degraded — /api/health reports it, the site stays up
-    print("WARNING: starting with incomplete artefacts", flush=True)
+        time.sleep(3600)
 
 
 if __name__ == "__main__":

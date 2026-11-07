@@ -85,11 +85,24 @@ jobs:
           EOF
           # the full artefact set: anything a deployed API needs to self-fetch
           mkdir -p release_assets/panel release_assets/forecasts release_assets/registry
-          cp data/panel/prices_weekly.parquet release_assets/panel.parquet
           cp data/panel/national_weekly.parquet data/panel/items.parquet data/panel/cities.parquet release_assets/panel/
           cp data/forecasts/forecasts.parquet data/forecasts/metrics.parquet data/forecasts/drift.parquet release_assets/forecasts/
           cp data/registry/model_registry.json release_assets/registry/
-          gh release upload release --clobber panel.parquet panel.csv release_assets/panel.parquet             release_assets/panel/national_weekly.parquet release_assets/panel/items.parquet             release_assets/panel/cities.parquet release_assets/forecasts/forecasts.parquet             release_assets/forecasts/metrics.parquet release_assets/forecasts/drift.parquet             release_assets/registry/model_registry.json data/raw/coverage_report.csv ||             gh release create release panel.parquet panel.csv release_assets/panel.parquet               release_assets/panel/national_weekly.parquet release_assets/panel/items.parquet               release_assets/panel/cities.parquet release_assets/forecasts/forecasts.parquet               release_assets/forecasts/metrics.parquet release_assets/forecasts/drift.parquet               release_assets/registry/model_registry.json data/raw/coverage_report.csv               --title "Bhao dataset" --notes "Weekly panel + API artefacts. See /data for the citation line." 
+          assets=(panel.parquet panel.csv
+            release_assets/panel/national_weekly.parquet
+            release_assets/panel/items.parquet
+            release_assets/panel/cities.parquet
+            release_assets/forecasts/forecasts.parquet
+            release_assets/forecasts/metrics.parquet
+            release_assets/forecasts/drift.parquet
+            release_assets/registry/model_registry.json
+            data/raw/coverage_report.csv)
+          if gh release view release >/dev/null 2>&1; then
+            gh release upload release --clobber "${assets[@]}"
+          else
+            gh release create release "${assets[@]}" --title "Bhao dataset" \
+              --notes "Weekly panel + API artefacts. See /data for the citation line."
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -103,7 +116,6 @@ jobs:
           \`\`\`
           $(tail -50 weekly_ingest.log 2>/dev/null || echo 'no ingest log')
           $(tail -50 weekly_model.log 2>/dev/null || echo 'no model log')
-          \`\`\`" \
-            --label "weekly-failure" || echo "issue creation failed (non-blocking)"
+          \`\`\`" || echo "issue creation failed (non-blocking)"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
